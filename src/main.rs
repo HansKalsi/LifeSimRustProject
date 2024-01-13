@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use error_iter::ErrorIter as _;
-use log::{debug, error};
+use log::{error};
 use pixels::{Error, Pixels, SurfaceTexture};
 use winit::{
     dpi::LogicalSize,
