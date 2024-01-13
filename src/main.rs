@@ -70,7 +70,8 @@ fn main() -> Result<(), Error> {
                 paused = true;
             }
             if input.key_pressed(VirtualKeyCode::R) {
-                life.randomize();
+                // FIXME: randomise world state
+                // life.randomize();
             }
 
             // Resize the window
@@ -117,12 +118,12 @@ struct Particle {
     y: f32,
     vx: f32,
     vy: f32,
-    color: Color,
+    colour: Color,
 }
 
 impl Particle {
-    fn new(x: f32, y: f32, vx: f32, vy: f32, color: Color) -> Self {
-        Self { x, y, vx, vy, color }
+    fn new(x: f32, y: f32, vx: f32, vy: f32, colour: Color) -> Self {
+        Self { x, y, vx, vy, colour }
     }
 }
 
@@ -134,6 +135,10 @@ struct ParticleGroup {
 impl ParticleGroup {
     fn new(group: Vec<Particle>) -> Self {
         Self { group }
+    }
+
+    fn update_group(&mut self, modifed_group: Vec<Particle>) {
+        self.group = modifed_group;
     }
 }
 
@@ -157,7 +162,6 @@ struct LifeGrid {
     num_of_particle_groups: usize,
     particle_groups: Vec<ParticleGroup>,
     rules: Vec<Rule>,
-    particles: Vec<Particle>,
 }
 
 impl LifeGrid {
@@ -169,7 +173,6 @@ impl LifeGrid {
             num_of_particle_groups,
             particle_groups: vec![],
             rules: vec![],
-            particles: vec![],
         }
     }
 
@@ -177,7 +180,7 @@ impl LifeGrid {
         let mut result = Self::new_empty(width, height, num_of_particle_groups);
         result.generate_particles();
         result.randomise_rules();
-        result.randomize();
+        // result.randomize();
         result
     }
 
@@ -199,7 +202,6 @@ impl LifeGrid {
     fn generate_particles(&mut self) {
         let mut rng: randomize::PCG32 = generate_seed().into();
         let mut particle_groups: Vec<ParticleGroup> = vec![];
-        let mut temp_final_particles: Vec<Particle> = vec![];
         let colours: Vec<Color> = self.randomise_rgb_colours();
 
         for c in colours.iter() {
@@ -212,13 +214,11 @@ impl LifeGrid {
                 let vx = 0.0;
                 let vy = 0.0;
                 particles.push(Particle::new(x, y, vx, vy, *c));
-                temp_final_particles.push(Particle::new(x, y, vx, vy, *c));
             }
             particle_groups.push(ParticleGroup::new(particles));
         }
 
         self.particle_groups = particle_groups;
-        self.particles = temp_final_particles;
     }
 
     fn randomise_rules(&mut self) {
@@ -235,42 +235,44 @@ impl LifeGrid {
         self.rules = rules;
     }
 
-    fn randomize(&mut self) {
-        for _ in 0..3 {
-            self.update();
-        }
-    }
+    // fn randomize(&mut self) {
+    //     for _ in 0..3 {
+    //         self.update();
+    //     }
+    // }
 
     fn trigger_rules(&mut self) {
         for r in self.rules.iter() {
-            let mut pg1 = self.particle_groups[r.particle_group_one].clone();
-            let pg2 = &self.particle_groups[r.particle_group_two];
-            for p1 in pg1.group.iter_mut() {
+            let mut modified_particles: Vec<Particle> = vec![];
+            let pg1 = &self.particle_groups[r.particle_group_one].group;
+            let pg2 = &self.particle_groups[r.particle_group_two].group;
+            for (p1, p2) in pg1.iter().zip(pg2.iter()) {
                 let mut fx: f32 = 0.0;
                 let mut fy: f32 = 0.0;
-                for p2 in pg2.group.iter() {
-                    let dx = p1.x - p2.x;
-                    let dy = p1.y - p2.y;
-                    let d = (dx * dx + dy * dy).sqrt();
-                    if d > 0.0 && d < 80.0 {
-                        let force = r.g * 1.0/d;
-                        fx += force * dx;
-                        fy += force * dy;
-                    }
+                // particle two logic
+                let dx = p1.x - p2.x;
+                let dy = p1.y - p2.y;
+                let d = (dx * dx + dy * dy).sqrt();
+                if d > 0.0 && d < 80.0 {
+                    let force = r.g * 1.0/d;
+                    fx += force * dx;
+                    fy += force * dy;
                 }
-                p1.vx = (p1.vx + fx)*0.5;
-                p1.vy = (p1.vy + fy)*0.5;
-                p1.x += p1.vx;
-                p1.y += p1.vy;
-                if p1.x < 0.0 || p1.x > self.width as f32 {
-                    p1.vx *= -1.0;
+                // after particle two logic
+                let mut temp_p1 = p1.clone();
+                temp_p1.vx = (temp_p1.vx + fx)*0.5;
+                temp_p1.vy = (temp_p1.vy + fy)*0.5;
+                temp_p1.x += temp_p1.vx;
+                temp_p1.y += temp_p1.vy;
+                if temp_p1.x < 0.0 || temp_p1.x > self.width as f32 {
+                    temp_p1.vx *= -1.0;
                 }
-                if p1.y < 0.0 || p1.y > self.height as f32 {
-                    p1.vy *= -1.0;
+                if temp_p1.y < 0.0 || temp_p1.y > self.height as f32 {
+                    temp_p1.vy *= -1.0;
                 }
+                modified_particles.push(Particle::new(temp_p1.x, temp_p1.y, temp_p1.vx, temp_p1.vy, temp_p1.colour));
             }
-            // update particle group
-            self.particle_groups[r.particle_group_one] = pg1;
+            self.particle_groups[r.particle_group_one].update_group(modified_particles);
         }
     }
 
@@ -278,16 +280,22 @@ impl LifeGrid {
         self.trigger_rules();
     }
 
+    fn draw_particle(&self, particle: &Particle, screen: &mut [u8]) {
+        let x = particle.x as usize;
+        let y = particle.y as usize;
+        let i = (y * self.width + x) * 4;
+        screen[i] = particle.colour.r as u8;
+        screen[i + 1] = particle.colour.g as u8;
+        screen[i + 2] = particle.colour.b as u8;
+        screen[i + 3] = particle.colour.a as u8;
+    }
+
     fn draw(&self, screen: &mut [u8]) {
-        debug_assert_eq!(screen.len(), 4 * self.particles.len());
-        for p in self.particles.iter() {
-            let x = p.x as usize;
-            let y = p.y as usize;
-            let i = (y * self.width + x) * 4;
-            screen[i] = p.color.r as u8;
-            screen[i + 1] = p.color.g as u8;
-            screen[i + 2] = p.color.b as u8;
-            screen[i + 3] = p.color.a as u8;
+        println!("printing particle groups: {:?}", self.particle_groups.len());
+        for p in self.particle_groups.iter() {
+            for particle in p.group.iter() {
+                self.draw_particle(particle, screen);
+            }
         }
     }
 }
