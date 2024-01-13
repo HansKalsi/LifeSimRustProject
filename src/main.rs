@@ -37,6 +37,8 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
+    // Customises the background colour
+    // pixels.clear_color(Color::BLACK);
 
     let mut life = LifeGrid::new_random(WIDTH as usize, HEIGHT as usize, PARTICLE_GROUPS_TO_GENERATE as usize);
     let mut paused = false;
@@ -44,7 +46,6 @@ fn main() -> Result<(), Error> {
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
         if let Event::RedrawRequested(_) = event {
-            // pixels.clear_color(Color::BLACK);
             life.draw(pixels.frame_mut());
             if let Err(err) = pixels.render() {
                 log_error("pixels.render", err);
@@ -279,10 +280,14 @@ impl LifeGrid {
 
     fn draw(&self, screen: &mut [u8]) {
         debug_assert_eq!(screen.len(), 4 * self.particles.len());
-        println!("particles, {}", self.particles.len());
-        for (p, pix) in self.particles.iter().zip(screen.chunks_exact_mut(4)) {
-            let color = [p.color.r as u8, p.color.g as u8, p.color.b as u8, p.color.a as u8];
-            pix.copy_from_slice(&color);
+        for p in self.particles.iter() {
+            let x = p.x as usize;
+            let y = p.y as usize;
+            let i = (y * self.width + x) * 4;
+            screen[i] = p.color.r as u8;
+            screen[i + 1] = p.color.g as u8;
+            screen[i + 2] = p.color.b as u8;
+            screen[i + 3] = p.color.a as u8;
         }
     }
 }
