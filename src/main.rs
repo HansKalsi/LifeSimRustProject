@@ -12,9 +12,10 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: u32 = 200;
-const HEIGHT: u32 = 200;
-const PARTICLE_GROUPS_TO_GENERATE: usize = 4;
+const WIDTH: u32 = 250;
+const HEIGHT: u32 = 250;
+const PARTICLE_GROUPS_TO_GENERATE: usize = 10;
+const PARTICLES_PER_GROUP: usize = 500;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -70,8 +71,7 @@ fn main() -> Result<(), Error> {
                 paused = true;
             }
             if input.key_pressed(VirtualKeyCode::R) {
-                // FIXME: randomise world state
-                // life.randomize();
+                life.randomize();
             }
 
             // Resize the window
@@ -180,7 +180,6 @@ impl LifeGrid {
         let mut result = Self::new_empty(width, height, num_of_particle_groups);
         result.generate_particles();
         result.randomise_rules();
-        // result.randomize();
         result
     }
 
@@ -206,9 +205,7 @@ impl LifeGrid {
 
         for c in colours.iter() {
             let mut particles: Vec<Particle> = vec![];
-            // TODO: Allow number of particles generated per group to be set globally
-            // Generate 100 particles
-            for _ in 0..100 {
+            for _ in 0..PARTICLES_PER_GROUP {
                 let x = randomize::f32_half_open_right(rng.next_u32()) * self.width as f32;
                 let y = randomize::f32_half_open_right(rng.next_u32()) * self.height as f32;
                 let vx = 0.0;
@@ -235,11 +232,13 @@ impl LifeGrid {
         self.rules = rules;
     }
 
-    // fn randomize(&mut self) {
-    //     for _ in 0..3 {
-    //         self.update();
-    //     }
-    // }
+    fn randomize(&mut self) {
+        self.generate_particles();
+        self.randomise_rules();
+        for _ in 0..3 {
+            self.update();
+        }
+    }
 
     fn trigger_rules(&mut self) {
         for r in self.rules.iter() {
@@ -305,6 +304,10 @@ impl LifeGrid {
     }
 
     fn draw(&self, screen: &mut [u8]) {
+        for pixel in screen.chunks_exact_mut(4) {
+            pixel.copy_from_slice(&[0, 0, 0, 0]);
+        }
+
         for p in self.particle_groups.iter() {
             for particle in p.group.iter() {
                 self.draw_particle(particle, screen);
