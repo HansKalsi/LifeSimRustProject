@@ -183,21 +183,6 @@ impl LifeGrid {
     fn randomise_rgb_colours(&mut self) -> Vec<Color> {
         let mut rng: randomize::PCG32 = generate_seed().into();
         let mut colours: Vec<Color> = vec![];
-        // const HEX_CHARS: [char; 16] = [
-        //     '0', '1', '2', '3', '4', '5', '6', '7',
-        //     '8', '9','A', 'B', 'C', 'D', 'E', 'F',
-        // ];
-
-        // while colours.len() < self.num_of_particle_groups {
-        //     let mut colour = String::from("#");
-        //     for _ in 0..6 {
-        //         let index = randomize::f64_half_open_right(rng.next_u32().into()) * 16.0;
-        //         colour += format!("{}{}", colour, HEX_CHARS[index as usize]).as_str();
-        //     }
-        //     if !colours.contains(colour) {
-        //         colours.push(colour);
-        //     }
-        // }
 
         for _ in 0..self.num_of_particle_groups {
             let mut colour: Color = Color::default();
