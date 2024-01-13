@@ -40,7 +40,7 @@ fn main() -> Result<(), Error> {
     let mut life = ConwayGrid::new_random(WIDTH as usize, HEIGHT as usize);
     let mut paused = false;
 
-    let mut draw_state: Option<bool> = None;
+    // let mut draw_state: Option<bool> = None;
 
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
@@ -199,9 +199,9 @@ impl Cell {
         self
     }
 
-    fn set_alive(&mut self, alive: bool) {
-        *self = self.next_state(alive);
-    }
+    // fn set_alive(&mut self, alive: bool) {
+    //     *self = self.next_state(alive);
+    // }
 
     fn cool_off(&mut self, decay: f32) {
         if !self.alive {
@@ -296,15 +296,15 @@ impl ConwayGrid {
         std::mem::swap(&mut self.scratch_cells, &mut self.cells);
     }
 
-    fn toggle(&mut self, x: isize, y: isize) -> bool {
-        if let Some(i) = self.grid_idx(x, y) {
-            let was_alive = self.cells[i].alive;
-            self.cells[i].set_alive(!was_alive);
-            !was_alive
-        } else {
-            false
-        }
-    }
+    // fn toggle(&mut self, x: isize, y: isize) -> bool {
+    //     if let Some(i) = self.grid_idx(x, y) {
+    //         let was_alive = self.cells[i].alive;
+    //         self.cells[i].set_alive(!was_alive);
+    //         !was_alive
+    //     } else {
+    //         false
+    //     }
+    // }
 
     fn draw(&self, screen: &mut [u8]) {
         debug_assert_eq!(screen.len(), 4 * self.cells.len());
@@ -318,22 +318,22 @@ impl ConwayGrid {
         }
     }
 
-    fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, alive: bool) -> Option<()> {
-        // possible to optimize by matching on Clipline and iterating over its arms
-        for (x, y) in clipline::Clipline::new(
-            ((x0, y0), (x1, y1)),
-            ((0, 0), (self.width as isize - 1, self.height as isize - 1)),
-        )? {
-            let (x, y) = (x as usize, y as usize);
-            self.cells[x + y * self.width].set_alive(alive);
-        }
-        Some(())
-    }
+    // fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, alive: bool) -> Option<()> {
+    //     // possible to optimize by matching on Clipline and iterating over its arms
+    //     for (x, y) in clipline::Clipline::new(
+    //         ((x0, y0), (x1, y1)),
+    //         ((0, 0), (self.width as isize - 1, self.height as isize - 1)),
+    //     )? {
+    //         let (x, y) = (x as usize, y as usize);
+    //         self.cells[x + y * self.width].set_alive(alive);
+    //     }
+    //     Some(())
+    // }
 
-    fn grid_idx<I: std::convert::TryInto<usize>>(&self, x: I, y: I) -> Option<usize> {
-        match (x.try_into(), y.try_into()) {
-            (Ok(x), Ok(y)) if x < self.width && y < self.height => Some(x + y * self.width),
-            _ => None,
-        }
-    }
+    // fn grid_idx<I: std::convert::TryInto<usize>>(&self, x: I, y: I) -> Option<usize> {
+    //     match (x.try_into(), y.try_into()) {
+    //         (Ok(x), Ok(y)) if x < self.width && y < self.height => Some(x + y * self.width),
+    //         _ => None,
+    //     }
+    // }
 }
