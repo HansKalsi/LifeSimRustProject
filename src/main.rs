@@ -11,10 +11,11 @@ use winit::{
     window::WindowBuilder,
 };
 use winit_input_helper::WinitInputHelper;
+use rand::Rng;
 
 const WIDTH: u32 = 1000;
 const HEIGHT: u32 = 1000;
-const PARTICLE_GROUPS_TO_GENERATE: usize = 10;
+const PARTICLE_GROUPS_TO_GENERATE: usize = 8;
 const MAX_PARTICLES_PER_GROUP: usize = 1000;
 
 fn main() -> Result<(), Error> {
@@ -243,6 +244,7 @@ impl LifeGrid {
 
     fn trigger_rules(&mut self) {
         for r in self.rules.iter() {
+            let mut rng = rand::thread_rng();
             let mut modified_particles: Vec<Particle> = vec![];
             let pg1 = &self.particle_groups[r.particle_group_one].group;
             let pg2 = &self.particle_groups[r.particle_group_two].group;
@@ -266,22 +268,17 @@ impl LifeGrid {
                 temp_p1.vy = (temp_p1.vy + fy)*0.5;
                 temp_p1.x += temp_p1.vx;
                 temp_p1.y += temp_p1.vy;
-                if temp_p1.x < 0.0 {
-                    temp_p1.x = 0.0;
+                // the rng.gen_range lines appear to cause something akin to mutation and result in constant complexity
+                if temp_p1.x < 0.0 || temp_p1.x > self.width as f32 {
+                    temp_p1.x = rng.gen_range(0.0..self.width as f32);
                     temp_p1.vx *= -1.0;
                 }
-                if temp_p1.x > self.width as f32 {
-                    temp_p1.x = self.width as f32;
-                    temp_p1.vx *= -1.0;
-                }
-                if temp_p1.y < 0.0 {
-                    temp_p1.y = 0.0;
+                if temp_p1.y < 0.0 || temp_p1.y > self.height as f32 {
+                    temp_p1.y = rng.gen_range(0.0..self.height as f32);
                     temp_p1.vy *= -1.0;
                 }
-                if temp_p1.y > self.height as f32 {
-                    temp_p1.y = self.height as f32;
-                    temp_p1.vy *= -1.0;
-                }
+
+                
                 modified_particles.push(Particle::new(temp_p1.x, temp_p1.y, temp_p1.vx, temp_p1.vy, temp_p1.colour));
             }
             self.particle_groups[r.particle_group_one].update_group(modified_particles);
