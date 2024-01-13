@@ -1,9 +1,15 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+mod components;
+use components::life_grid::LifeGrid;
+use components::particle::Particle;
+use components::particle_group::ParticleGroup;
+use components::rule::Rule;
+
 use error_iter::ErrorIter as _;
 use log::{error, log};
-use pixels::{Error, Pixels, SurfaceTexture, wgpu::Color};
+use pixels::{Error, Pixels, SurfaceTexture};
 use winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -11,7 +17,6 @@ use winit::{
     window::WindowBuilder,
 };
 use winit_input_helper::WinitInputHelper;
-use rand::Rng;
 
 const WIDTH: u32 = 1000;
 const HEIGHT: u32 = 1000;
@@ -95,221 +100,5 @@ fn log_error<E: std::error::Error + 'static>(method_name: &str, err: E) {
     error!("{method_name}() failed: {err}");
     for source in err.sources().skip(1) {
         error!("  Caused by: {source}");
-    }
-}
-
-/// Generate a pseudorandom seed for the game's PRNG.
-fn generate_seed() -> (u64, u64) {
-    use byteorder::{ByteOrder, NativeEndian};
-    use getrandom::getrandom;
-
-    let mut seed = [0_u8; 16];
-
-    getrandom(&mut seed).expect("failed to getrandom");
-
-    (
-        NativeEndian::read_u64(&seed[0..8]),
-        NativeEndian::read_u64(&seed[8..16]),
-    )
-}
-
-#[derive(Clone, Debug, Default)]
-struct Particle {
-    x: f32,
-    y: f32,
-    vx: f32,
-    vy: f32,
-    colour: Color,
-}
-
-impl Particle {
-    fn new(x: f32, y: f32, vx: f32, vy: f32, colour: Color) -> Self {
-        Self { x, y, vx, vy, colour }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-struct ParticleGroup {
-    group: Vec<Particle>,
-}
-
-impl ParticleGroup {
-    fn new(group: Vec<Particle>) -> Self {
-        Self { group }
-    }
-
-    fn update_group(&mut self, modifed_group: Vec<Particle>) {
-        self.group = modifed_group;
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-struct Rule {
-    particle_group_one: usize,
-    particle_group_two: usize,
-    g: f32,
-}
-
-impl Rule {
-    fn new(particle_group_one: usize, particle_group_two: usize, g: f32) -> Self {
-        Self { particle_group_one, particle_group_two, g }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct LifeGrid {
-    width: usize,
-    height: usize,
-    num_of_particle_groups: usize,
-    particle_groups: Vec<ParticleGroup>,
-    rules: Vec<Rule>,
-}
-
-impl LifeGrid {
-    fn new_empty(width: usize, height: usize, num_of_particle_groups: usize) -> Self {
-        assert!(width != 0 && height != 0);
-        Self {
-            width,
-            height,
-            num_of_particle_groups,
-            particle_groups: vec![],
-            rules: vec![],
-        }
-    }
-
-    fn new_random(width: usize, height: usize, num_of_particle_groups: usize) -> Self {
-        let mut result = Self::new_empty(width, height, num_of_particle_groups);
-        result.generate_particles();
-        result.randomise_rules();
-        result
-    }
-
-    fn randomise_rgb_colours(&mut self) -> Vec<Color> {
-        let mut rng: randomize::PCG32 = generate_seed().into();
-        let mut colours: Vec<Color> = vec![];
-
-        for _ in 0..self.num_of_particle_groups {
-            let mut colour: Color = Color::default();
-            colour.r = (rng.next_u32() % 256 as u32) as f64;
-            colour.g = (rng.next_u32() % 256 as u32) as f64;
-            colour.b = (rng.next_u32() % 256 as u32) as f64;
-            colour.a = 0xff as f64;
-            colours.push(colour);
-        }
-        colours
-    }
-
-    fn generate_particles(&mut self) {
-        let mut rng: randomize::PCG32 = generate_seed().into();
-        let mut particle_groups: Vec<ParticleGroup> = vec![];
-        let colours: Vec<Color> = self.randomise_rgb_colours();
-
-        for c in colours.iter() {
-            let mut particles: Vec<Particle> = vec![];
-            let particles_to_generate = rng.next_u32() % MAX_PARTICLES_PER_GROUP as u32;
-            for _ in 0..particles_to_generate {
-                let x = randomize::f32_half_open_right(rng.next_u32()) * self.width as f32;
-                let y = randomize::f32_half_open_right(rng.next_u32()) * self.height as f32;
-                let vx = 0.0;
-                let vy = 0.0;
-                particles.push(Particle::new(x, y, vx, vy, *c));
-            }
-            particle_groups.push(ParticleGroup::new(particles));
-        }
-
-        self.particle_groups = particle_groups;
-    }
-
-    fn randomise_rules(&mut self) {
-        let mut rng: randomize::PCG32 = generate_seed().into();
-        let mut rules: Vec<Rule> = vec![];
-
-        for particle_group_one in 0..self.num_of_particle_groups {
-            for particle_group_two in 0..self.num_of_particle_groups {
-                let g = randomize::f32_half_open_right(rng.next_u32());
-                rules.push(Rule::new(particle_group_one, particle_group_two, g));
-            }
-        }
-
-        self.rules = rules;
-    }
-
-    fn randomize(&mut self) {
-        self.generate_particles();
-        self.randomise_rules();
-        for _ in 0..3 {
-            self.update();
-        }
-    }
-
-    fn trigger_rules(&mut self) {
-        for r in self.rules.iter() {
-            let mut rng = rand::thread_rng();
-            let mut modified_particles: Vec<Particle> = vec![];
-            let pg1 = &self.particle_groups[r.particle_group_one].group;
-            let pg2 = &self.particle_groups[r.particle_group_two].group;
-            for p1 in pg1.iter() {
-                let mut fx: f32 = 0.0;
-                let mut fy: f32 = 0.0;
-                // particle two logic
-                for p2 in pg2.iter() {
-                    let dx = p1.x - p2.x;
-                    let dy = p1.y - p2.y;
-                    let d = (dx * dx + dy * dy).sqrt();
-                    if d > 0.0 && d < 100.0 {
-                        let force = r.g * 1.0/d;
-                        fx += force * dx;
-                        fy += force * dy;
-                    }
-                }
-                // after particle two logic
-                let mut temp_p1 = p1.clone();
-                temp_p1.vx = (temp_p1.vx + fx)*0.5;
-                temp_p1.vy = (temp_p1.vy + fy)*0.5;
-                temp_p1.x += temp_p1.vx;
-                temp_p1.y += temp_p1.vy;
-                // the rng.gen_range lines appear to cause something akin to mutation and result in constant complexity
-                if temp_p1.x < 0.0 || temp_p1.x > self.width as f32 {
-                    temp_p1.x = rng.gen_range(0.0..self.width as f32);
-                    temp_p1.vx *= -1.0;
-                }
-                if temp_p1.y < 0.0 || temp_p1.y > self.height as f32 {
-                    temp_p1.y = rng.gen_range(0.0..self.height as f32);
-                    temp_p1.vy *= -1.0;
-                }
-
-                
-                modified_particles.push(Particle::new(temp_p1.x, temp_p1.y, temp_p1.vx, temp_p1.vy, temp_p1.colour));
-            }
-            self.particle_groups[r.particle_group_one].update_group(modified_particles);
-        }
-    }
-
-    fn update(&mut self) {
-        self.trigger_rules();
-    }
-
-    fn draw_particle(&self, particle: &Particle, screen: &mut [u8]) {
-        let x = particle.x as usize;
-        let y = particle.y as usize;
-        let screen_size = screen.len() - 4;
-        let i = ((y * self.height + x) * 4).clamp(0, screen_size);
-        println!("i: {}", i);
-        screen[i] = particle.colour.r as u8;
-        screen[i + 1] = particle.colour.g as u8;
-        screen[i + 2] = particle.colour.b as u8;
-        screen[i + 3] = particle.colour.a as u8;
-    }
-
-    fn draw(&self, screen: &mut [u8]) {
-        for pixel in screen.chunks_exact_mut(4) {
-            pixel.copy_from_slice(&[0, 0, 0, 0]);
-        }
-
-        for p in self.particle_groups.iter() {
-            for particle in p.group.iter() {
-                self.draw_particle(particle, screen);
-            }
-        }
     }
 }
