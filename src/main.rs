@@ -12,10 +12,10 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: u32 = 250;
-const HEIGHT: u32 = 250;
+const WIDTH: u32 = 1000;
+const HEIGHT: u32 = 1000;
 const PARTICLE_GROUPS_TO_GENERATE: usize = 10;
-const PARTICLES_PER_GROUP: usize = 500;
+const MAX_PARTICLES_PER_GROUP: usize = 1000;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -205,7 +205,8 @@ impl LifeGrid {
 
         for c in colours.iter() {
             let mut particles: Vec<Particle> = vec![];
-            for _ in 0..PARTICLES_PER_GROUP {
+            let particles_to_generate = rng.next_u32() % MAX_PARTICLES_PER_GROUP as u32;
+            for _ in 0..particles_to_generate {
                 let x = randomize::f32_half_open_right(rng.next_u32()) * self.width as f32;
                 let y = randomize::f32_half_open_right(rng.next_u32()) * self.height as f32;
                 let vx = 0.0;
@@ -245,17 +246,19 @@ impl LifeGrid {
             let mut modified_particles: Vec<Particle> = vec![];
             let pg1 = &self.particle_groups[r.particle_group_one].group;
             let pg2 = &self.particle_groups[r.particle_group_two].group;
-            for (p1, p2) in pg1.iter().zip(pg2.iter()) {
+            for p1 in pg1.iter() {
                 let mut fx: f32 = 0.0;
                 let mut fy: f32 = 0.0;
                 // particle two logic
-                let dx = p1.x - p2.x;
-                let dy = p1.y - p2.y;
-                let d = (dx * dx + dy * dy).sqrt();
-                if d > 0.0 && d < 80.0 {
-                    let force = r.g * 1.0/d;
-                    fx += force * dx;
-                    fy += force * dy;
+                for p2 in pg2.iter() {
+                    let dx = p1.x - p2.x;
+                    let dy = p1.y - p2.y;
+                    let d = (dx * dx + dy * dy).sqrt();
+                    if d > 0.0 && d < 100.0 {
+                        let force = r.g * 1.0/d;
+                        fx += force * dx;
+                        fy += force * dy;
+                    }
                 }
                 // after particle two logic
                 let mut temp_p1 = p1.clone();
@@ -263,22 +266,20 @@ impl LifeGrid {
                 temp_p1.vy = (temp_p1.vy + fy)*0.5;
                 temp_p1.x += temp_p1.vx;
                 temp_p1.y += temp_p1.vy;
-                if (temp_p1.x < 0.0){
+                if temp_p1.x < 0.0 {
                     temp_p1.x = 0.0;
-                }
-                if (temp_p1.x > self.width as f32){
-                    temp_p1.x = self.width as f32;
-                }
-                if (temp_p1.y < 0.0){
-                    temp_p1.y = 0.0;
-                }
-                if (temp_p1.y > self.height as f32){
-                    temp_p1.y = self.height as f32;
-                }
-                if temp_p1.x < 0.0 || temp_p1.x > self.width as f32 {
                     temp_p1.vx *= -1.0;
                 }
-                if temp_p1.y < 0.0 || temp_p1.y > self.height as f32 {
+                if temp_p1.x > self.width as f32 {
+                    temp_p1.x = self.width as f32;
+                    temp_p1.vx *= -1.0;
+                }
+                if temp_p1.y < 0.0 {
+                    temp_p1.y = 0.0;
+                    temp_p1.vy *= -1.0;
+                }
+                if temp_p1.y > self.height as f32 {
+                    temp_p1.y = self.height as f32;
                     temp_p1.vy *= -1.0;
                 }
                 modified_particles.push(Particle::new(temp_p1.x, temp_p1.y, temp_p1.vx, temp_p1.vy, temp_p1.colour));
