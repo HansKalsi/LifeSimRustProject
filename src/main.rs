@@ -12,8 +12,8 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: u32 = 500;
-const HEIGHT: u32 = 500;
+const WIDTH: u32 = 200;
+const HEIGHT: u32 = 200;
 const PARTICLE_GROUPS_TO_GENERATE: usize = 4;
 
 fn main() -> Result<(), Error> {
@@ -264,6 +264,18 @@ impl LifeGrid {
                 temp_p1.vy = (temp_p1.vy + fy)*0.5;
                 temp_p1.x += temp_p1.vx;
                 temp_p1.y += temp_p1.vy;
+                if (temp_p1.x < 0.0){
+                    temp_p1.x = 0.0;
+                }
+                if (temp_p1.x > self.width as f32){
+                    temp_p1.x = self.width as f32;
+                }
+                if (temp_p1.y < 0.0){
+                    temp_p1.y = 0.0;
+                }
+                if (temp_p1.y > self.height as f32){
+                    temp_p1.y = self.height as f32;
+                }
                 if temp_p1.x < 0.0 || temp_p1.x > self.width as f32 {
                     temp_p1.vx *= -1.0;
                 }
@@ -283,7 +295,9 @@ impl LifeGrid {
     fn draw_particle(&self, particle: &Particle, screen: &mut [u8]) {
         let x = particle.x as usize;
         let y = particle.y as usize;
-        let i = (y * self.width + x) * 4;
+        let screen_size = screen.len() - 4;
+        let i = ((y * self.height + x) * 4).clamp(0, screen_size);
+        println!("i: {}", i);
         screen[i] = particle.colour.r as u8;
         screen[i + 1] = particle.colour.g as u8;
         screen[i + 2] = particle.colour.b as u8;
@@ -291,7 +305,6 @@ impl LifeGrid {
     }
 
     fn draw(&self, screen: &mut [u8]) {
-        println!("printing particle groups: {:?}", self.particle_groups.len());
         for p in self.particle_groups.iter() {
             for particle in p.group.iter() {
                 self.draw_particle(particle, screen);
