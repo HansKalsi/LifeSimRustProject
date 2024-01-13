@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use error_iter::ErrorIter as _;
-use log::{error};
-use pixels::{Error, Pixels, SurfaceTexture};
+use log::{error, log};
+use pixels::{Error, Pixels, SurfaceTexture, wgpu::Color};
 use winit::{
     dpi::LogicalSize,
     event::{Event, VirtualKeyCode},
@@ -14,6 +14,7 @@ use winit_input_helper::WinitInputHelper;
 
 const WIDTH: u32 = 500;
 const HEIGHT: u32 = 500;
+const PARTICLE_GROUPS_TO_GENERATE: usize = 4;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -37,14 +38,13 @@ fn main() -> Result<(), Error> {
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
 
-    let mut life = ConwayGrid::new_random(WIDTH as usize, HEIGHT as usize);
+    let mut life = LifeGrid::new_random(WIDTH as usize, HEIGHT as usize, PARTICLE_GROUPS_TO_GENERATE as usize);
     let mut paused = false;
-
-    // let mut draw_state: Option<bool> = None;
 
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
         if let Event::RedrawRequested(_) = event {
+            // pixels.clear_color(Color::BLACK);
             life.draw(pixels.frame_mut());
             if let Err(err) = pixels.render() {
                 log_error("pixels.render", err);
@@ -71,56 +71,7 @@ fn main() -> Result<(), Error> {
             if input.key_pressed(VirtualKeyCode::R) {
                 life.randomize();
             }
-            // Handle mouse. This is a bit involved since support some simple
-            // line drawing (mostly because it makes nice looking patterns).
-            // let (mouse_cell, mouse_prev_cell) = input
-            //     .mouse()
-            //     .map(|(mx, my)| {
-            //         let (dx, dy) = input.mouse_diff();
-            //         let prev_x = mx - dx;
-            //         let prev_y = my - dy;
 
-            //         let (mx_i, my_i) = pixels
-            //             .window_pos_to_pixel((mx, my))
-            //             .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
-
-            //         let (px_i, py_i) = pixels
-            //             .window_pos_to_pixel((prev_x, prev_y))
-            //             .unwrap_or_else(|pos| pixels.clamp_pixel_pos(pos));
-
-            //         (
-            //             (mx_i as isize, my_i as isize),
-            //             (px_i as isize, py_i as isize),
-            //         )
-            //     })
-            //     .unwrap_or_default();
-
-            // if input.mouse_pressed(0) {
-            //     debug!("Mouse click at {mouse_cell:?}");
-            //     draw_state = Some(life.toggle(mouse_cell.0, mouse_cell.1));
-            // } else if let Some(draw_alive) = draw_state {
-            //     let release = input.mouse_released(0);
-            //     let held = input.mouse_held(0);
-            //     debug!("Draw at {mouse_prev_cell:?} => {mouse_cell:?}");
-            //     debug!("Mouse held {held:?}, release {release:?}");
-            //     // If they either released (finishing the drawing) or are still
-            //     // in the middle of drawing, keep going.
-            //     if release || held {
-            //         debug!("Draw line of {draw_alive:?}");
-            //         life.set_line(
-            //             mouse_prev_cell.0,
-            //             mouse_prev_cell.1,
-            //             mouse_cell.0,
-            //             mouse_cell.1,
-            //             draw_alive,
-            //         );
-            //     }
-            //     // If they let go or are otherwise not clicking anymore, stop drawing.
-            //     if release || !held {
-            //         debug!("Draw end");
-            //         draw_state = None;
-            //     }
-            // }
             // Resize the window
             if let Some(size) = input.window_resized() {
                 if let Err(err) = pixels.resize_surface(size.width, size.height) {
@@ -159,181 +110,194 @@ fn generate_seed() -> (u64, u64) {
     )
 }
 
-const BIRTH_RULE: [bool; 9] = [false, false, false, true, false, false, false, false, false];
-const SURVIVE_RULE: [bool; 9] = [false, false, true, true, false, false, false, false, false];
-const INITIAL_FILL: f32 = 0.3;
-
-#[derive(Clone, Copy, Debug, Default)]
-struct Cell {
-    alive: bool,
-    // Used for the trail effect. Always 255 if `self.alive` is true (We could
-    // use an enum for Cell, but it makes several functions slightly more
-    // complex, and doesn't actually make anything any simpler here, or save any
-    // memory, so we don't)
-    heat: u8,
+#[derive(Clone, Debug, Default)]
+struct Particle {
+    x: f32,
+    y: f32,
+    vx: f32,
+    vy: f32,
+    color: Color,
 }
 
-impl Cell {
-    fn new(alive: bool) -> Self {
-        Self { alive, heat: 0 }
+impl Particle {
+    fn new(x: f32, y: f32, vx: f32, vy: f32, color: Color) -> Self {
+        Self { x, y, vx, vy, color }
     }
+}
 
-    #[must_use]
-    fn update_neibs(self, n: usize) -> Self {
-        let next_alive = if self.alive {
-            SURVIVE_RULE[n]
-        } else {
-            BIRTH_RULE[n]
-        };
-        self.next_state(next_alive)
+#[derive(Clone, Debug, Default)]
+struct ParticleGroup {
+    group: Vec<Particle>,
+}
+
+impl ParticleGroup {
+    fn new(group: Vec<Particle>) -> Self {
+        Self { group }
     }
+}
 
-    #[must_use]
-    fn next_state(mut self, alive: bool) -> Self {
-        self.alive = alive;
-        if self.alive {
-            self.heat = 255;
-        } else {
-            self.heat = self.heat.saturating_sub(1);
-        }
-        self
-    }
+#[derive(Clone, Debug, Default)]
+struct Rule {
+    particle_group_one: usize,
+    particle_group_two: usize,
+    g: f32,
+}
 
-    // fn set_alive(&mut self, alive: bool) {
-    //     *self = self.next_state(alive);
-    // }
-
-    fn cool_off(&mut self, decay: f32) {
-        if !self.alive {
-            let heat = (self.heat as f32 * decay).clamp(0.0, 255.0);
-            assert!(heat.is_finite());
-            self.heat = heat as u8;
-        }
+impl Rule {
+    fn new(particle_group_one: usize, particle_group_two: usize, g: f32) -> Self {
+        Self { particle_group_one, particle_group_two, g }
     }
 }
 
 #[derive(Clone, Debug)]
-struct ConwayGrid {
-    cells: Vec<Cell>,
+struct LifeGrid {
     width: usize,
     height: usize,
-    // Should always be the same size as `cells`. When updating, we read from
-    // `cells` and write to `scratch_cells`, then swap. Otherwise it's not in
-    // use, and `cells` should be updated directly.
-    scratch_cells: Vec<Cell>,
+    num_of_particle_groups: usize,
+    particle_groups: Vec<ParticleGroup>,
+    rules: Vec<Rule>,
+    particles: Vec<Particle>,
 }
 
-impl ConwayGrid {
-    fn new_empty(width: usize, height: usize) -> Self {
+impl LifeGrid {
+    fn new_empty(width: usize, height: usize, num_of_particle_groups: usize) -> Self {
         assert!(width != 0 && height != 0);
-        let size = width.checked_mul(height).expect("too big");
         Self {
-            cells: vec![Cell::default(); size],
-            scratch_cells: vec![Cell::default(); size],
             width,
             height,
+            num_of_particle_groups,
+            particle_groups: vec![],
+            rules: vec![],
+            particles: vec![],
         }
     }
 
-    fn new_random(width: usize, height: usize) -> Self {
-        let mut result = Self::new_empty(width, height);
+    fn new_random(width: usize, height: usize, num_of_particle_groups: usize) -> Self {
+        let mut result = Self::new_empty(width, height, num_of_particle_groups);
+        result.generate_particles();
+        result.randomise_rules();
         result.randomize();
         result
     }
 
-    fn randomize(&mut self) {
+    fn randomise_rgb_colours(&mut self) -> Vec<Color> {
         let mut rng: randomize::PCG32 = generate_seed().into();
-        for c in self.cells.iter_mut() {
-            let alive = randomize::f32_half_open_right(rng.next_u32()) > INITIAL_FILL;
-            *c = Cell::new(alive);
+        let mut colours: Vec<Color> = vec![];
+        // const HEX_CHARS: [char; 16] = [
+        //     '0', '1', '2', '3', '4', '5', '6', '7',
+        //     '8', '9','A', 'B', 'C', 'D', 'E', 'F',
+        // ];
+
+        // while colours.len() < self.num_of_particle_groups {
+        //     let mut colour = String::from("#");
+        //     for _ in 0..6 {
+        //         let index = randomize::f64_half_open_right(rng.next_u32().into()) * 16.0;
+        //         colour += format!("{}{}", colour, HEX_CHARS[index as usize]).as_str();
+        //     }
+        //     if !colours.contains(colour) {
+        //         colours.push(colour);
+        //     }
+        // }
+
+        for _ in 0..self.num_of_particle_groups {
+            let mut colour: Color = Color::default();
+            colour.r = (rng.next_u32() % 256 as u32) as f64;
+            colour.g = (rng.next_u32() % 256 as u32) as f64;
+            colour.b = (rng.next_u32() % 256 as u32) as f64;
+            colour.a = 0xff as f64;
+            colours.push(colour);
         }
-        // run a few simulation iterations for aesthetics (If we don't, the
-        // noise is ugly)
+        colours
+    }
+
+    fn generate_particles(&mut self) {
+        let mut rng: randomize::PCG32 = generate_seed().into();
+        let mut particle_groups: Vec<ParticleGroup> = vec![];
+        let mut temp_final_particles: Vec<Particle> = vec![];
+        let colours: Vec<Color> = self.randomise_rgb_colours();
+
+        for c in colours.iter() {
+            let mut particles: Vec<Particle> = vec![];
+            // TODO: Allow number of particles generated per group to be set globally
+            // Generate 100 particles
+            for _ in 0..100 {
+                let x = randomize::f32_half_open_right(rng.next_u32()) * self.width as f32;
+                let y = randomize::f32_half_open_right(rng.next_u32()) * self.height as f32;
+                let vx = 0.0;
+                let vy = 0.0;
+                particles.push(Particle::new(x, y, vx, vy, *c));
+                temp_final_particles.push(Particle::new(x, y, vx, vy, *c));
+            }
+            particle_groups.push(ParticleGroup::new(particles));
+        }
+
+        self.particle_groups = particle_groups;
+        self.particles = temp_final_particles;
+    }
+
+    fn randomise_rules(&mut self) {
+        let mut rng: randomize::PCG32 = generate_seed().into();
+        let mut rules: Vec<Rule> = vec![];
+
+        for particle_group_one in 0..self.num_of_particle_groups {
+            for particle_group_two in 0..self.num_of_particle_groups {
+                let g = randomize::f32_half_open_right(rng.next_u32());
+                rules.push(Rule::new(particle_group_one, particle_group_two, g));
+            }
+        }
+
+        self.rules = rules;
+    }
+
+    fn randomize(&mut self) {
         for _ in 0..3 {
             self.update();
         }
-        // Smooth out noise in the heatmap that would remain for a while
-        for c in self.cells.iter_mut() {
-            c.cool_off(0.4);
-        }
     }
 
-    fn count_neibs(&self, x: usize, y: usize) -> usize {
-        let (xm1, xp1) = if x == 0 {
-            (self.width - 1, x + 1)
-        } else if x == self.width - 1 {
-            (x - 1, 0)
-        } else {
-            (x - 1, x + 1)
-        };
-        let (ym1, yp1) = if y == 0 {
-            (self.height - 1, y + 1)
-        } else if y == self.height - 1 {
-            (y - 1, 0)
-        } else {
-            (y - 1, y + 1)
-        };
-        self.cells[xm1 + ym1 * self.width].alive as usize
-            + self.cells[x + ym1 * self.width].alive as usize
-            + self.cells[xp1 + ym1 * self.width].alive as usize
-            + self.cells[xm1 + y * self.width].alive as usize
-            + self.cells[xp1 + y * self.width].alive as usize
-            + self.cells[xm1 + yp1 * self.width].alive as usize
-            + self.cells[x + yp1 * self.width].alive as usize
-            + self.cells[xp1 + yp1 * self.width].alive as usize
+    fn trigger_rules(&mut self) {
+        for r in self.rules.iter() {
+            let mut pg1 = self.particle_groups[r.particle_group_one].clone();
+            let pg2 = &self.particle_groups[r.particle_group_two];
+            for p1 in pg1.group.iter_mut() {
+                let mut fx: f32 = 0.0;
+                let mut fy: f32 = 0.0;
+                for p2 in pg2.group.iter() {
+                    let dx = p1.x - p2.x;
+                    let dy = p1.y - p2.y;
+                    let d = (dx * dx + dy * dy).sqrt();
+                    if d > 0.0 && d < 80.0 {
+                        let force = r.g * 1.0/d;
+                        fx += force * dx;
+                        fy += force * dy;
+                    }
+                }
+                p1.vx = (p1.vx + fx)*0.5;
+                p1.vy = (p1.vy + fy)*0.5;
+                p1.x += p1.vx;
+                p1.y += p1.vy;
+                if p1.x < 0.0 || p1.x > self.width as f32 {
+                    p1.vx *= -1.0;
+                }
+                if p1.y < 0.0 || p1.y > self.height as f32 {
+                    p1.vy *= -1.0;
+                }
+            }
+            // update particle group
+            self.particle_groups[r.particle_group_one] = pg1;
+        }
     }
 
     fn update(&mut self) {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let neibs = self.count_neibs(x, y);
-                let idx = x + y * self.width;
-                let next = self.cells[idx].update_neibs(neibs);
-                // Write into scratch_cells, since we're still reading from `self.cells`
-                self.scratch_cells[idx] = next;
-            }
-        }
-        std::mem::swap(&mut self.scratch_cells, &mut self.cells);
+        self.trigger_rules();
     }
 
-    // fn toggle(&mut self, x: isize, y: isize) -> bool {
-    //     if let Some(i) = self.grid_idx(x, y) {
-    //         let was_alive = self.cells[i].alive;
-    //         self.cells[i].set_alive(!was_alive);
-    //         !was_alive
-    //     } else {
-    //         false
-    //     }
-    // }
-
     fn draw(&self, screen: &mut [u8]) {
-        debug_assert_eq!(screen.len(), 4 * self.cells.len());
-        for (c, pix) in self.cells.iter().zip(screen.chunks_exact_mut(4)) {
-            let color = if c.alive {
-                [0, 0xff, 0xff, 0xff]
-            } else {
-                [0, 0, c.heat, 0xff]
-            };
+        debug_assert_eq!(screen.len(), 4 * self.particles.len());
+        println!("particles, {}", self.particles.len());
+        for (p, pix) in self.particles.iter().zip(screen.chunks_exact_mut(4)) {
+            let color = [p.color.r as u8, p.color.g as u8, p.color.b as u8, p.color.a as u8];
             pix.copy_from_slice(&color);
         }
     }
-
-    // fn set_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize, alive: bool) -> Option<()> {
-    //     // possible to optimize by matching on Clipline and iterating over its arms
-    //     for (x, y) in clipline::Clipline::new(
-    //         ((x0, y0), (x1, y1)),
-    //         ((0, 0), (self.width as isize - 1, self.height as isize - 1)),
-    //     )? {
-    //         let (x, y) = (x as usize, y as usize);
-    //         self.cells[x + y * self.width].set_alive(alive);
-    //     }
-    //     Some(())
-    // }
-
-    // fn grid_idx<I: std::convert::TryInto<usize>>(&self, x: I, y: I) -> Option<usize> {
-    //     match (x.try_into(), y.try_into()) {
-    //         (Ok(x), Ok(y)) if x < self.width && y < self.height => Some(x + y * self.width),
-    //         _ => None,
-    //     }
-    // }
 }
