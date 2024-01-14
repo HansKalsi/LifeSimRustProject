@@ -3,6 +3,7 @@ pub struct Rule {
     pub particle_group_one: usize,
     pub particle_group_two: usize,
     pub g: f32,
+    // TODO: Add further logic to rules to allow for interaction/effects between particle groups
 }
 
 impl Rule {

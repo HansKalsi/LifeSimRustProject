@@ -3,7 +3,6 @@ use crate::ParticleGroup;
 use crate::Rule;
 use crate::MAX_PARTICLES_PER_GROUP;
 
-use rand::Rng;
 use pixels::wgpu::Color;
 
 #[derive(Clone, Debug)]
@@ -62,7 +61,7 @@ impl LifeGrid {
                 let y = randomize::f32_half_open_right(rng.next_u32()) * self.height as f32;
                 let vx = 0.0;
                 let vy = 0.0;
-                particles.push(Particle::new(x, y, vx, vy, *c));
+                particles.push(Particle::new(x, y, vx, vy, *c, 1));
             }
             particle_groups.push(ParticleGroup::new(particles));
         }
@@ -94,44 +93,8 @@ impl LifeGrid {
 
     fn trigger_rules(&mut self) {
         for r in self.rules.iter() {
-            let mut rng = rand::thread_rng();
-            let mut modified_particles: Vec<Particle> = vec![];
-            let pg1 = &self.particle_groups[r.particle_group_one].group;
-            let pg2 = &self.particle_groups[r.particle_group_two].group;
-            for p1 in pg1.iter() {
-                let mut fx: f32 = 0.0;
-                let mut fy: f32 = 0.0;
-                // particle two logic
-                for p2 in pg2.iter() {
-                    let dx = p1.x - p2.x;
-                    let dy = p1.y - p2.y;
-                    let d = (dx * dx + dy * dy).sqrt();
-                    if d > 0.0 && d < 100.0 {
-                        let force = r.g * 1.0/d;
-                        fx += force * dx;
-                        fy += force * dy;
-                    }
-                }
-                // after particle two logic
-                let mut temp_p1 = p1.clone();
-                temp_p1.vx = (temp_p1.vx + fx)*0.5;
-                temp_p1.vy = (temp_p1.vy + fy)*0.5;
-                temp_p1.x += temp_p1.vx;
-                temp_p1.y += temp_p1.vy;
-                // the rng.gen_range lines appear to cause something akin to mutation and result in constant complexity
-                if temp_p1.x < 0.0 || temp_p1.x > self.width as f32 {
-                    temp_p1.x = rng.gen_range(0.0..self.width as f32);
-                    temp_p1.vx *= -1.0;
-                }
-                if temp_p1.y < 0.0 || temp_p1.y > self.height as f32 {
-                    temp_p1.y = rng.gen_range(0.0..self.height as f32);
-                    temp_p1.vy *= -1.0;
-                }
-
-                
-                modified_particles.push(Particle::new(temp_p1.x, temp_p1.y, temp_p1.vx, temp_p1.vy, temp_p1.colour));
-            }
-            self.particle_groups[r.particle_group_one].update_group(modified_particles);
+            let group_two_clone = self.particle_groups[r.particle_group_two].group.clone();
+            self.particle_groups[r.particle_group_one].apply_rule(r.g, group_two_clone);
         }
     }
 
