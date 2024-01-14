@@ -11,13 +11,16 @@ pub struct Particle {
     pub vy: f32,
     pub colour: Color, // TODO: fade alpha to 0 as life force decreases
     // TODO: Add lifecycle logic for birth/survival/death of particles
-    pub birth_rate: i8, // represents how many children this particle will spawn
-    pub life_force: i8, // represents a %, when hits 0 particle dies
+    /// represents how many children this particle will spawn
+    pub birth_rate: i8,
+    pub birth_cooldown: i8, // TODO: add cooldown to prevent spawning too many children in a short period of time
+    pub life_force: i8,
 }
 
 impl Particle {
     pub fn new(x: f32, y: f32, vx: f32, vy: f32, colour: Color, birth_rate: i8) -> Self {
-        Self { x, y, vx, vy, colour, birth_rate, life_force: 100 }
+        let mut rng = rand::thread_rng();
+        Self { x, y, vx, vy, colour, birth_rate, life_force: rng.gen_range(50.0..100.0) as i8 }
     }
 
     pub fn update_particle(&mut self, fx: f32, fy: f32) {
@@ -40,9 +43,9 @@ impl Particle {
     pub fn lifecycle(&mut self) -> bool {
         if self.is_alive() {
             self.reduce_life_force(1);
-            return true; // is alive
+            return true; // is alive (was active)
         } else {
-            return false; // is dead
+            return false; // is dead (was inactive)
         }
     }
 
@@ -53,6 +56,7 @@ impl Particle {
         return true;
     }
 
+    // TODO: add rule effect for gaining life force (eg consuming life force of another particle)
     pub fn add_life_force(&mut self, life_force_to_add: i8) {
         self.life_force += life_force_to_add;
     }
@@ -61,11 +65,16 @@ impl Particle {
         self.life_force -= life_force_to_reduce;
     }
 
-    pub fn spawn_children(&self) -> Vec<Particle> {
+    pub fn spawn_children(&mut self) -> Vec<Particle> {
+        let mut rng = rand::thread_rng();
         let mut children: Vec<Particle> = vec![];
+        // TODO: make offsets a property of the particle (to allow for random variation) 
+        let birth_offset_x: f32 = rng.gen_range(-100.0..100.0 as f32);
+        let birth_offset_y: f32 = rng.gen_range(-100.0..100.0 as f32);
         for _ in 0..self.birth_rate {
-            children.push(Particle::new(self.x, self.y, 0.0, 0.0, self.colour, self.birth_rate));
+            children.push(Particle::new(self.x + birth_offset_x, self.y + birth_offset_y, 0.0, 0.0, self.colour, self.birth_rate));
         }
+        // self.reduce_life_force(20); // cost of energy to spawn children
         children // return vector so it can be added to the parents particle group
     }
 }

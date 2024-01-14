@@ -2,6 +2,7 @@ use crate::Particle;
 use crate::ParticleGroup;
 use crate::Rule;
 use crate::MAX_PARTICLES_PER_GROUP;
+use crate::generate_seed;
 
 use pixels::wgpu::Color;
 
@@ -70,17 +71,16 @@ impl LifeGrid {
     }
 
     fn randomise_rules(&mut self) {
-        let mut rng: randomize::PCG32 = generate_seed().into();
-        let mut rules: Vec<Rule> = vec![];
-
+        self.rules = vec![];
         for particle_group_one in 0..self.num_of_particle_groups {
             for particle_group_two in 0..self.num_of_particle_groups {
-                let g = randomize::f32_half_open_right(rng.next_u32());
-                rules.push(Rule::new(particle_group_one, particle_group_two, g));
+                if particle_group_one == particle_group_two {
+                    self.rules.push(Rule::new(particle_group_one, particle_group_two, false));
+                    continue;
+                }
+                self.rules.push(Rule::new(particle_group_one, particle_group_two, true));
             }
         }
-
-        self.rules = rules;
     }
 
     pub fn randomize(&mut self) {
@@ -94,7 +94,8 @@ impl LifeGrid {
     fn trigger_rules(&mut self) {
         for r in self.rules.iter() {
             let group_two_clone = self.particle_groups[r.particle_group_two].group.clone();
-            self.particle_groups[r.particle_group_one].apply_rule(r.g, group_two_clone);
+            let effect_clone = r.effect.clone(); // Clone the effect string
+            self.particle_groups[r.particle_group_one].apply_rule(r.g, group_two_clone, effect_clone);
         }
     }
 
@@ -107,6 +108,14 @@ impl LifeGrid {
     pub fn update(&mut self) {
         self.trigger_rules();
         self.lifecycle_events();
+
+        let mut sum = 0;
+        for p in self.particle_groups.iter() {
+            sum += p.group.len();
+        }
+        if sum <= 10 {
+            self.randomize();
+        }
     }
 
     fn draw_particle(&self, particle: &Particle, screen: &mut [u8]) {
@@ -114,7 +123,11 @@ impl LifeGrid {
         let y = particle.y as usize;
         let screen_size = screen.len() - 4;
         let i = ((y * self.height + x) * 4).clamp(0, screen_size);
-        println!("i: {}", i);
+        let mut sum = 0;
+        for p in self.particle_groups.iter() {
+            sum += p.group.len();
+        }
+        println!("amount of particles: {}", sum);
         screen[i] = particle.colour.r as u8;
         screen[i + 1] = particle.colour.g as u8;
         screen[i + 2] = particle.colour.b as u8;
@@ -132,19 +145,4 @@ impl LifeGrid {
             }
         }
     }
-}
-
-/// Generate a pseudorandom seed for the game's PRNG.
-fn generate_seed() -> (u64, u64) {
-    use byteorder::{ByteOrder, NativeEndian};
-    use getrandom::getrandom;
-
-    let mut seed = [0_u8; 16];
-
-    getrandom(&mut seed).expect("failed to getrandom");
-
-    (
-        NativeEndian::read_u64(&seed[0..8]),
-        NativeEndian::read_u64(&seed[8..16]),
-    )
 }

@@ -44,8 +44,6 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
-    // Customises the background colour
-    // pixels.clear_color(Color::BLACK);
 
     let mut life = LifeGrid::new_random(WIDTH as usize, HEIGHT as usize, PARTICLE_GROUPS_TO_GENERATE as usize);
     let mut paused = false;
@@ -101,4 +99,19 @@ fn log_error<E: std::error::Error + 'static>(method_name: &str, err: E) {
     for source in err.sources().skip(1) {
         error!("  Caused by: {source}");
     }
+}
+
+/// Generate a pseudorandom seed for the game's PRNG.
+fn generate_seed() -> (u64, u64) {
+    use byteorder::{ByteOrder, NativeEndian};
+    use getrandom::getrandom;
+
+    let mut seed = [0_u8; 16];
+
+    getrandom(&mut seed).expect("failed to getrandom");
+
+    (
+        NativeEndian::read_u64(&seed[0..8]),
+        NativeEndian::read_u64(&seed[8..16]),
+    )
 }
