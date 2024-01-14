@@ -98,8 +98,15 @@ impl LifeGrid {
         }
     }
 
+    fn lifecycle_events(&mut self) {
+        for pg in self.particle_groups.iter_mut() {
+            pg.lifecycle();
+        }
+    }
+
     pub fn update(&mut self) {
         self.trigger_rules();
+        self.lifecycle_events();
     }
 
     fn draw_particle(&self, particle: &Particle, screen: &mut [u8]) {

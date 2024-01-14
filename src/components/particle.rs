@@ -39,7 +39,7 @@ impl Particle {
 
     pub fn lifecycle(&mut self) -> bool {
         if self.is_alive() {
-            self.tick_life_force();
+            self.reduce_life_force(1);
             return true; // is alive
         } else {
             return false; // is dead
@@ -52,16 +52,16 @@ impl Particle {
         }
         return true;
     }
-    
-    fn tick_life_force(&mut self) {
-        self.life_force -= 1;
+
+    pub fn add_life_force(&mut self, life_force_to_add: i8) {
+        self.life_force += life_force_to_add;
     }
 
-    pub fn add_life_force(&mut self, life_force: i8) {
-        self.life_force += life_force;
+    pub fn reduce_life_force(&mut self, life_force_to_reduce: i8) {
+        self.life_force -= life_force_to_reduce;
     }
 
-    pub fn birth_children(&self) -> Vec<Particle> {
+    pub fn spawn_children(&self) -> Vec<Particle> {
         let mut children: Vec<Particle> = vec![];
         for _ in 0..self.birth_rate {
             children.push(Particle::new(self.x, self.y, 0.0, 0.0, self.colour, self.birth_rate));

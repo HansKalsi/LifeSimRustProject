@@ -10,8 +10,16 @@ impl ParticleGroup {
         Self { group }
     }
 
-    pub fn update_group(&mut self, modifed_group: Vec<Particle>) {
-        self.group = modifed_group;
+    pub fn lifecycle(&mut self) {
+        let mut dead_particles: Vec<usize> = vec![];
+        for (i, particle) in self.group.iter_mut().enumerate() {
+            if !particle.lifecycle() {
+                dead_particles.push(i);
+            }
+        }
+        for i in dead_particles.iter().rev() {
+            self.group.swap_remove(*i);
+        }
     }
 
     pub fn apply_rule(&mut self, rule_g: f32, other_group: Vec<Particle>) {
