@@ -13,7 +13,7 @@ pub struct Particle {
     // TODO: Add lifecycle logic for birth/survival/death of particles
     /// represents how many children this particle will spawn
     pub birth_rate: i8,
-    pub birth_cooldown: i8, // TODO: add cooldown to prevent spawning too many children in a short period of time
+    // pub birth_cooldown: i8, // TODO: add cooldown to prevent spawning too many children in a short period of time
     pub life_force: i8,
 }
 
