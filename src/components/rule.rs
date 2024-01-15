@@ -1,19 +1,20 @@
 use crate::generate_seed;
+use pixels::wgpu::Color;
 use rand::Rng;
 
 #[derive(Clone, Debug, Default)]
 pub struct Rule {
-    pub particle_group_one: usize,
-    pub particle_group_two: usize,
+    pub particle_group_one_colour: Color,
+    pub particle_group_two_colour: Color,
     pub g: f32,
     // TODO: Add further logic to rules to allow for interaction/effects between particle groups
     pub effect: String,
 }
 
 impl Rule {
-    pub fn new(particle_group_one: usize, particle_group_two: usize, effect_allowed: bool) -> Self {
+    pub fn new(particle_group_one_colour: Color, particle_group_two_colour: Color, effect_allowed: bool) -> Self {
         let mut rng: randomize::PCG32 = generate_seed().into();
-        Self { particle_group_one, particle_group_two, g: randomize::f32_half_open_right(rng.next_u32()), effect: Self::assign_random_effect(effect_allowed) }
+        Self { particle_group_one_colour, particle_group_two_colour, g: randomize::f32_half_open_right(rng.next_u32()), effect: Self::assign_random_effect(effect_allowed) }
     }
 
     fn assign_random_effect(effect_allowed: bool) -> String {

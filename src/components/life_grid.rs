@@ -5,30 +5,41 @@ use crate::MAX_PARTICLES_PER_GROUP;
 use crate::generate_seed;
 
 use pixels::wgpu::Color;
+use pixel_map::PixelMap;
+use bevy_math::UVec2;
 
 #[derive(Clone, Debug)]
 pub struct LifeGrid {
     pub width: usize,
     pub height: usize,
     pub num_of_particle_groups: usize,
-    pub particle_groups: Vec<ParticleGroup>,
+    pub colours: Vec<Color>,
     pub rules: Vec<Rule>,
+    pub pixel_map: PixelMap<Color>,
+    pub particles: Vec<Particle>,
 }
 
 impl LifeGrid {
-    fn new_empty(width: usize, height: usize, num_of_particle_groups: usize) -> Self {
+    fn new_empty(width: usize, height: usize, num_of_particle_groups: usize, pixel_map: PixelMap<Color>) -> Self {
         assert!(width != 0 && height != 0);
         Self {
             width,
             height,
             num_of_particle_groups,
-            particle_groups: vec![],
+            colours: vec![],
             rules: vec![],
+            pixel_map,
+            particles: vec![],
         }
     }
 
     pub fn new_random(width: usize, height: usize, num_of_particle_groups: usize) -> Self {
-        let mut result = Self::new_empty(width, height, num_of_particle_groups);
+        let pixel_map = PixelMap::<Color>::new(
+            &UVec2{x: width as u32, y: height as u32}, // size of the pixel map
+            Color{r:0.0,g:0.0,b:0.0,a:255.0}, // initial value of each pixel
+            1, // pixel size
+        );
+        let mut result = Self::new_empty(width, height, num_of_particle_groups, pixel_map);
         result.generate_particles();
         result.randomise_rules();
         result
@@ -51,23 +62,18 @@ impl LifeGrid {
 
     fn generate_particles(&mut self) {
         let mut rng: randomize::PCG32 = generate_seed().into();
-        let mut particle_groups: Vec<ParticleGroup> = vec![];
-        let colours: Vec<Color> = self.randomise_rgb_colours();
+        self.colours = self.randomise_rgb_colours();
 
-        for c in colours.iter() {
-            let mut particles: Vec<Particle> = vec![];
+        for c in self.colours.iter() {
             let particles_to_generate = rng.next_u32() % MAX_PARTICLES_PER_GROUP as u32;
             for _ in 0..particles_to_generate {
                 let x = randomize::f32_half_open_right(rng.next_u32()) * self.width as f32;
                 let y = randomize::f32_half_open_right(rng.next_u32()) * self.height as f32;
                 let vx = 0.0;
                 let vy = 0.0;
-                particles.push(Particle::new(x, y, vx, vy, *c, 1));
+                self.particles.push(Particle::new(x, y, vx, vy, *c, 1));
             }
-            particle_groups.push(ParticleGroup::new(particles));
         }
-
-        self.particle_groups = particle_groups;
     }
 
     fn randomise_rules(&mut self) {
@@ -75,10 +81,10 @@ impl LifeGrid {
         for particle_group_one in 0..self.num_of_particle_groups {
             for particle_group_two in 0..self.num_of_particle_groups {
                 if particle_group_one == particle_group_two {
-                    self.rules.push(Rule::new(particle_group_one, particle_group_two, false));
+                    self.rules.push(Rule::new(self.colours[particle_group_one], self.colours[particle_group_two], false));
                     continue;
                 }
-                self.rules.push(Rule::new(particle_group_one, particle_group_two, true));
+                self.rules.push(Rule::new(self.colours[particle_group_one], self.colours[particle_group_two], true));
             }
         }
     }
@@ -92,27 +98,61 @@ impl LifeGrid {
     }
 
     fn trigger_rules(&mut self) {
+        let mut temp_particle_groups_by_colour: Vec<ParticleGroup> = vec![];
+        let mut temp_colour_tracker: Vec<Color> = vec![];
+        for p in self.particles.iter() {
+            for c in self.colours.iter() {
+                if p.colour == *c {
+                    // Check temp_colour_tracker for index if it exists
+                    if let Some(index) = temp_colour_tracker.iter().position(|&color| color == *c) {
+                        temp_particle_groups_by_colour[index].group.push(p.clone());
+                    } else {
+                        // If it doesn't exist, create a new ParticleGroup and push it to particle_groups_by_colour
+                        let mut new_particle_group = ParticleGroup::default();
+                        new_particle_group.group.push(p.clone());
+                        temp_particle_groups_by_colour.push(new_particle_group);
+                        temp_colour_tracker.push(*c);
+                    }
+                    break;
+                }
+            }
+        }
+
         for r in self.rules.iter() {
-            let group_two_clone = self.particle_groups[r.particle_group_two].group.clone();
-            let effect_clone = r.effect.clone(); // Clone the effect string
-            self.particle_groups[r.particle_group_one].apply_rule(r.g, group_two_clone, effect_clone);
+            let particle_group_one_colour = r.particle_group_one_colour;
+            let particle_group_two_colour = r.particle_group_two_colour;
+
+            let particle_group_one_index = temp_colour_tracker.iter().position(|&color| color == particle_group_one_colour);
+            let particle_group_two_index = temp_colour_tracker.iter().position(|&color| color == particle_group_two_colour);
+
+            // FIXME: this clone causes crashes when there are no more particles of a certain colour (since the rule will still try to apply)
+            let temp_group_two_clone = temp_particle_groups_by_colour[particle_group_two_index.unwrap()].group.clone();
+            temp_particle_groups_by_colour[particle_group_one_index.unwrap()].apply_rule(r.g, temp_group_two_clone, r.effect.clone());
+        }
+
+        // Trigger lifecycle events
+        let temp_final_particle_groups = self.lifecycle_events(temp_particle_groups_by_colour);
+
+        // Update global particles vector
+        self.particles = vec![];
+        for p in temp_final_particle_groups.iter() {
+            for particle in p.group.iter() {
+                self.particles.push(particle.clone());
+            }
         }
     }
 
-    fn lifecycle_events(&mut self) {
-        for pg in self.particle_groups.iter_mut() {
+    fn lifecycle_events(&mut self, mut temp_particle_groups: Vec<ParticleGroup>) -> Vec<ParticleGroup> {
+        for pg in temp_particle_groups.iter_mut() {
             pg.lifecycle();
         }
+        temp_particle_groups
     }
 
     pub fn update(&mut self) {
         self.trigger_rules();
-        self.lifecycle_events();
 
-        let mut sum = 0;
-        for p in self.particle_groups.iter() {
-            sum += p.group.len();
-        }
+        let sum = self.particles.len();
         if sum <= 10 {
             self.randomize();
         }
@@ -123,10 +163,7 @@ impl LifeGrid {
         let y = particle.y as usize;
         let screen_size = screen.len() - 4;
         let i = ((y * self.height + x) * 4).clamp(0, screen_size);
-        let mut sum = 0;
-        for p in self.particle_groups.iter() {
-            sum += p.group.len();
-        }
+        let mut sum = self.particles.len();
         println!("amount of particles: {}", sum);
         screen[i] = particle.colour.r as u8;
         screen[i + 1] = particle.colour.g as u8;
@@ -134,15 +171,24 @@ impl LifeGrid {
         screen[i + 3] = particle.colour.a as u8;
     }
 
-    pub fn draw(&self, screen: &mut [u8]) {
+    // ~16% weight | FIXME: second most inefficent piece atm
+    pub fn draw(&mut self, screen: &mut [u8]) {
+        // Clear the canvas
         for pixel in screen.chunks_exact_mut(4) {
             pixel.copy_from_slice(&[0, 0, 0, 0]);
         }
 
-        for p in self.particle_groups.iter() {
-            for particle in p.group.iter() {
-                self.draw_particle(particle, screen);
-            }
+        // Reset the pixel map
+        self.pixel_map.clear(Color{r:0.0,g:0.0,b:0.0,a:255.0});
+        for particle in self.particles.iter() {
+            self.pixel_map.set_pixel(UVec2{x: particle.x as u32, y: particle.y as u32}, particle.colour);
         }
+
+        // Visit all leaf nodes
+        self.pixel_map.visit(|node, _rect| {
+            // println!("region: {:?}, value: {:?}", node.region(), node.value());
+            let quadtree_particle_refernce = Particle::new(node.region().x() as f32, node.region().y() as f32, 0.0, 0.0, *node.value(), 0);
+            self.draw_particle(&quadtree_particle_refernce, screen);
+        });
     }
 }

@@ -22,6 +22,7 @@ impl ParticleGroup {
         }
     }
 
+    //  ~58% weight | FIXME: most inefficent piece atm (need to revamp using the quadtree features)
     pub fn apply_rule(&mut self, rule_g: f32, other_group: Vec<Particle>, rule_effect: String) {
         self.check_for_position_overlap(other_group.clone(), rule_effect);
         for particle in self.group.iter_mut() {
@@ -41,6 +42,7 @@ impl ParticleGroup {
         }
     }
 
+    // ~8% weight
     fn check_for_position_overlap(&mut self, other_group: Vec<Particle>, rule_effect: String) {
         if rule_effect == "nothing" {
             return;
