@@ -179,6 +179,7 @@ impl LifeGrid {
         }
 
         // Reset the pixel map
+        // Modifying this colour can display the quadtree
         self.pixel_map.clear(Color{r:0.0,g:0.0,b:0.0,a:255.0});
         for particle in self.particles.iter() {
             self.pixel_map.set_pixel(UVec2{x: particle.x as u32, y: particle.y as u32}, particle.colour);
