@@ -118,6 +118,18 @@ impl LifeGrid {
             }
         }
 
+        // Remove rules that don't have any particles left
+        let mut live_rules: Vec<Rule> = vec![];
+        for r in self.rules.iter() {
+            let particle_group_one_colour = r.particle_group_one_colour;
+            let particle_group_two_colour = r.particle_group_two_colour;
+
+            if temp_colour_tracker.contains(&particle_group_one_colour) && temp_colour_tracker.contains(&particle_group_two_colour) {
+                live_rules.push(r.clone());
+            }
+        }
+        self.rules = live_rules;
+
         for r in self.rules.iter() {
             let particle_group_one_colour = r.particle_group_one_colour;
             let particle_group_two_colour = r.particle_group_two_colour;
@@ -125,7 +137,6 @@ impl LifeGrid {
             let particle_group_one_index = temp_colour_tracker.iter().position(|&color| color == particle_group_one_colour);
             let particle_group_two_index = temp_colour_tracker.iter().position(|&color| color == particle_group_two_colour);
 
-            // FIXME: this clone causes crashes when there are no more particles of a certain colour (since the rule will still try to apply)
             let temp_group_two_clone = temp_particle_groups_by_colour[particle_group_two_index.unwrap()].group.clone();
             temp_particle_groups_by_colour[particle_group_one_index.unwrap()].apply_rule(r.g, temp_group_two_clone, r.effect.clone());
         }
