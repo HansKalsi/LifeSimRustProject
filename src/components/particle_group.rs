@@ -1,4 +1,6 @@
 use crate::Particle;
+use pixels::wgpu::Color;
+use pixel_map::PixelMap;
 
 #[derive(Clone, Debug, Default)]
 pub struct ParticleGroup {
@@ -40,6 +42,11 @@ impl ParticleGroup {
             }
             particle.update_particle(fx, fy);
         }
+
+        // for p in self.group.iter_mut() {
+        //     // FIXME: need to rewrite code to use rect so I can use the quadtree features and check nearby rects for particles for efficiency
+        //     let nearby_particles = pixel_map.visit_neighbor_pairs(&p.rect, );
+        // }
     }
 
     // ~8% weight

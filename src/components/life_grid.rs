@@ -130,6 +130,7 @@ impl LifeGrid {
         }
         self.rules = live_rules;
 
+        // Apply rules
         for r in self.rules.iter() {
             let particle_group_one_colour = r.particle_group_one_colour;
             let particle_group_two_colour = r.particle_group_two_colour;
@@ -174,7 +175,7 @@ impl LifeGrid {
         let y = particle.y as usize;
         let screen_size = screen.len() - 4;
         let i = ((y * self.height + x) * 4).clamp(0, screen_size);
-        let mut sum = self.particles.len();
+        let sum = self.particles.len();
         println!("amount of particles: {}", sum);
         screen[i] = particle.colour.r as u8;
         screen[i + 1] = particle.colour.g as u8;
@@ -182,6 +183,7 @@ impl LifeGrid {
         screen[i + 3] = particle.colour.a as u8;
     }
 
+    // Need rect, node, screen to be passed when draw_particle
     // ~16% weight | FIXME: second most inefficent piece atm
     pub fn draw(&mut self, screen: &mut [u8]) {
         // Clear the canvas
@@ -190,7 +192,7 @@ impl LifeGrid {
         }
 
         // Reset the pixel map
-        // Modifying this colour can display the quadtree
+        // Modifying this colour can display the quadtree - may be useful for GUI
         self.pixel_map.clear(Color{r:0.0,g:0.0,b:0.0,a:255.0});
         for particle in self.particles.iter() {
             self.pixel_map.set_pixel(UVec2{x: particle.x as u32, y: particle.y as u32}, particle.colour);
@@ -199,7 +201,7 @@ impl LifeGrid {
         // Visit all leaf nodes
         self.pixel_map.visit(|node, _rect| {
             // println!("region: {:?}, value: {:?}", node.region(), node.value());
-            let quadtree_particle_refernce = Particle::new(node.region().x() as f32, node.region().y() as f32, 0.0, 0.0, *node.value(), 0);
+            let mut quadtree_particle_refernce = Particle::new(node.region().x() as f32, node.region().y() as f32, 0.0, 0.0, *node.value(), 0);
             self.draw_particle(&quadtree_particle_refernce, screen);
         });
     }

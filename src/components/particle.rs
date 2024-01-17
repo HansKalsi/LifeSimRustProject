@@ -1,5 +1,7 @@
 use pixels::wgpu::Color;
 use rand::Rng;
+use pixel_map::PNode;
+use bevy_math::URect;
 
 use crate::{WIDTH, HEIGHT};
 
@@ -13,8 +15,10 @@ pub struct Particle {
     // TODO: Add lifecycle logic for birth/survival/death of particles
     /// represents how many children this particle will spawn
     pub birth_rate: i8,
-    // pub birth_cooldown: i8, // TODO: add cooldown to prevent spawning too many children in a short period of time
+    // pub birth_cooldown: i8 // TODO: add cooldown to prevent spawning too many children in a short period of time
     pub life_force: i8,
+    // FIXME: Need to figure out how to add a node to the particle so it can be used for the quadtree (OR DO DIFFERENTLY (LIKELY USING VISIT IN SOME WAY))
+    // pub node: PNode,
 }
 
 impl Particle {
