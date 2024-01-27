@@ -21,7 +21,7 @@ use winit_input_helper::WinitInputHelper;
 const WIDTH: u32 = 1000;
 const HEIGHT: u32 = 1000;
 const PARTICLE_GROUPS_TO_GENERATE: usize = 8;
-const MAX_PARTICLES_PER_GROUP: usize = 500;
+const MAX_PARTICLES_PER_GROUP: usize = 1000;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -44,6 +44,10 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
+
+    // Customises the background colour
+    // pixels.clear_color(Color::BLACK);
+
 
     let mut life = LifeGrid::new_random(WIDTH as usize, HEIGHT as usize, PARTICLE_GROUPS_TO_GENERATE as usize);
     let mut paused = false;
