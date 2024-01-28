@@ -4,6 +4,7 @@ use crate::Rule;
 use crate::MAX_PARTICLES_PER_GROUP;
 use crate::generate_seed;
 
+use bevy_math::URect;
 use pixels::wgpu::Color;
 use pixel_map::PixelMap;
 use bevy_math::UVec2;
@@ -69,9 +70,10 @@ impl LifeGrid {
         let mut rng: randomize::PCG32 = generate_seed().into();
         self.colours = self.randomise_rgb_colours();
 
+        let mut temp_id_counter = 1;
         for c in self.colours.iter() {
-            let particles_to_generate = rng.next_u32() % MAX_PARTICLES_PER_GROUP as u32;
-            for id in 1..particles_to_generate {
+            for id in temp_id_counter..(MAX_PARTICLES_PER_GROUP as u32 + temp_id_counter as u32) {
+                temp_id_counter += 1;
                 self.global_id_count += 1;
                 let x = randomize::f32_half_open_right(rng.next_u32()) * self.width as f32;
                 let y = randomize::f32_half_open_right(rng.next_u32()) * self.height as f32;
@@ -79,6 +81,7 @@ impl LifeGrid {
                 self.pixel_map.set_pixel(initial_cords, Particle::new(id, x, y, 0.0, 0.0, *c, 1));
             }
         }
+        println!("temp_id_counter final number: {}", temp_id_counter);
     }
 
     fn randomise_rules(&mut self) {
@@ -150,44 +153,36 @@ impl LifeGrid {
         }
         self.rules = live_rules;
 
-        // Apply rules
-        for r in self.rules.iter() {
-            let particle_group_one_colour = r.particle_group_one_colour;
-            let particle_group_two_colour = r.particle_group_two_colour;
+        // // Apply rules
+        // for r in self.rules.iter() {
+        //     let particle_group_one_colour = r.particle_group_one_colour;
+        //     let particle_group_two_colour = r.particle_group_two_colour;
 
-            let particle_group_one_index = temp_colour_tracker.iter().position(|&color| color == particle_group_one_colour);
-            let particle_group_two_index = temp_colour_tracker.iter().position(|&color| color == particle_group_two_colour);
+        //     let particle_group_one_index = temp_colour_tracker.iter().position(|&color| color == particle_group_one_colour);
+        //     let particle_group_two_index = temp_colour_tracker.iter().position(|&color| color == particle_group_two_colour);
 
-            let temp_group_two_clone = temp_particle_groups_by_colour[particle_group_two_index.unwrap()].group.clone();
-            temp_particle_groups_by_colour[particle_group_one_index.unwrap()].apply_rule(r.g, temp_group_two_clone, r.effect.clone(), self.global_id_count);
-        }
-
-        // Trigger lifecycle events
-        let temp_final_particle_groups = self.lifecycle_events(temp_particle_groups_by_colour);
+        //     let temp_group_two_clone = temp_particle_groups_by_colour[particle_group_two_index.unwrap()].group.clone();
+        //     temp_particle_groups_by_colour[particle_group_one_index.unwrap()].apply_rule(r.g, temp_group_two_clone, r.effect.clone(), self.global_id_count);
+        // }
 
         // Identify quadtree nodes to update
-        let mut temp_update_pixel_map: Vec<Particle> = vec![];
-        self.pixel_map.visit(|p_node, _rect| {
+        let mut temp_update_pixel_map: Vec<(Particle, URect)> = vec![];
+        self.pixel_map.visit(|p_node, rect| {
             if p_node.value().id != 0 {
-                let mut found_node = false;
-                for pg in temp_final_particle_groups.iter() {
-                    for p in pg.group.iter() {
-                        if p_node.value().id == p.id {
-                            temp_update_pixel_map.push(*p);
-                            found_node = true;
-                            break;
-                        }
-                    }
-                    if found_node {
-                        break;
-                    }
-                }
+                temp_update_pixel_map.push((*p_node.value(), *rect));
             }
+        });
+
+        // Apply rules to quadtree
+        self.pixel_map.visit_in_rect(rect, |p, _rect| {
+            println!("visiting rect: {:?}", rect);
         });
 
         self.pixel_map.clear(Particle::empty());
 
         // Update quadtree
+        println!("temp_update_pixel_map length: {}", temp_update_pixel_map.len());
+        temp_update_pixel_map = self.particle_lifecycle_events(temp_update_pixel_map);
         for p in temp_update_pixel_map.iter() {
             // Update node particle
             let current_cords = UVec2{ x: p.x as u32, y: p.y as u32 };
@@ -197,11 +192,17 @@ impl LifeGrid {
         self.runs_with_life += 1;
     }
 
-    fn lifecycle_events(&mut self, mut temp_particle_groups: Vec<ParticleGroup>) -> Vec<ParticleGroup> {
-        for pg in temp_particle_groups.iter_mut() {
-            pg.lifecycle();
+    fn particle_lifecycle_events(&mut self, mut temp_particles: Vec<Particle>) -> Vec<Particle> {
+        let mut dead_particles: Vec<usize> = vec![];
+        for (i, particle) in temp_particles.iter_mut().enumerate() {
+            if !particle.lifecycle() {
+                dead_particles.push(i);
+            }
         }
-        temp_particle_groups
+        for i in dead_particles.iter().rev() {
+            temp_particles.swap_remove(*i);
+        }
+        temp_particles
     }
 
     pub fn update(&mut self) {

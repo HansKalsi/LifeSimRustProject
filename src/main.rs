@@ -18,8 +18,8 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: u32 = 1000;
-const HEIGHT: u32 = 1000;
+const WIDTH: u32 = 250;
+const HEIGHT: u32 = 250;
 const PARTICLE_GROUPS_TO_GENERATE: usize = 8;
 const MAX_PARTICLES_PER_GROUP: usize = 1000;
 
