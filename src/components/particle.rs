@@ -5,6 +5,7 @@ use crate::{WIDTH, HEIGHT};
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Particle {
+    pub pixel_colour_rgba: [u8; 4],
     pub id: u32,
     pub x: f32,
     pub y: f32,
@@ -22,6 +23,7 @@ pub struct Particle {
 impl Particle {
     pub fn empty() -> Self {
         Self {
+            pixel_colour_rgba: [0, 0, 0, 0],
             id: 0,
             x: 0.0,
             y : 0.0,
@@ -33,9 +35,17 @@ impl Particle {
         }
     }
 
-    pub fn new(id: u32, x: f32, y: f32, vx: f32, vy: f32, colour: Color, birth_rate: i8) -> Self {
+    pub fn new(rgba: [u8; 4], id: u32, x: f32, y: f32, vx: f32, vy: f32, colour: Color, birth_rate: i8) -> Self {
         let mut rng = rand::thread_rng();
-        Self { id, x, y, vx, vy, colour, birth_rate, life_force: rng.gen_range(50.0..100.0) as i8 }
+        Self { pixel_colour_rgba: rgba, id, x, y, vx, vy, colour, birth_rate, life_force: rng.gen_range(50.0..100.0) as i8 }
+    }
+
+    pub fn randomise_pixel_colour(&mut self) {
+        let mut rng = rand::thread_rng();
+        self.pixel_colour_rgba[0] = rng.gen_range(0..255);
+        self.pixel_colour_rgba[1] = rng.gen_range(0..255);
+        self.pixel_colour_rgba[2] = rng.gen_range(0..255);
+        self.pixel_colour_rgba[3] = 0xff;
     }
 
     pub fn update_particle(&mut self, fx: f32, fy: f32) {
@@ -80,18 +90,18 @@ impl Particle {
         self.life_force -= life_force_to_reduce;
     }
 
-    pub fn spawn_children(&mut self, mut global_id_count: u32) -> Vec<Particle> {
-        println!("new particle spawned");
-        let mut rng = rand::thread_rng();
-        let mut children: Vec<Particle> = vec![];
-        // TODO: make offsets a property of the particle (to allow for random variation) 
-        let birth_offset_x: f32 = rng.gen_range(-100.0..100.0 as f32);
-        let birth_offset_y: f32 = rng.gen_range(-100.0..100.0 as f32);
-        global_id_count += 1;
-        for _ in 0..self.birth_rate {
-            children.push(Particle::new(global_id_count, self.x + birth_offset_x, self.y + birth_offset_y, 0.0, 0.0, self.colour, self.birth_rate));
-        }
-        // self.reduce_life_force(20); // cost of energy to spawn children
-        children // return vector so it can be added to the parents particle group
-    }
+    // pub fn spawn_children(&mut self, mut global_id_count: u32) -> Vec<Particle> {
+    //     println!("new particle spawned");
+    //     let mut rng = rand::thread_rng();
+    //     let mut children: Vec<Particle> = vec![];
+    //     // TODO: make offsets a property of the particle (to allow for random variation) 
+    //     let birth_offset_x: f32 = rng.gen_range(-100.0..100.0 as f32);
+    //     let birth_offset_y: f32 = rng.gen_range(-100.0..100.0 as f32);
+    //     global_id_count += 1;
+    //     for _ in 0..self.birth_rate {
+    //         children.push(Particle::new(global_id_count, self.x + birth_offset_x, self.y + birth_offset_y, 0.0, 0.0, self.colour, self.birth_rate));
+    //     }
+    //     // self.reduce_life_force(20); // cost of energy to spawn children
+    //     children // return vector so it can be added to the parents particle group
+    // }
 }

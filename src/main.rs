@@ -2,10 +2,12 @@
 #![forbid(unsafe_code)]
 
 mod components;
-use components::life_grid::LifeGrid;
-use components::particle::Particle;
-use components::particle_group::ParticleGroup;
-use components::rule::Rule;
+// use components::life_grid::LifeGrid;
+// use components::particle::Particle;
+// use components::particle_group::ParticleGroup;
+// use components::rule::Rule;
+
+use components::simulation_grid::SimGrid;
 
 use error_iter::ErrorIter as _;
 use log::{error, log};
@@ -18,8 +20,8 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 
-const WIDTH: u32 = 1000;
-const HEIGHT: u32 = 1000;
+const WIDTH: u32 = 250;
+const HEIGHT: u32 = 250;
 const PARTICLE_GROUPS_TO_GENERATE: usize = 8;
 const MAX_PARTICLES_PER_GROUP: usize = 1000;
 
@@ -48,14 +50,15 @@ fn main() -> Result<(), Error> {
     // Customises the background colour
     // pixels.clear_color(Color::BLACK);
 
-
-    let mut life = LifeGrid::new_random(WIDTH as usize, HEIGHT as usize, PARTICLE_GROUPS_TO_GENERATE as usize);
+    let mut simulation = SimGrid::new(WIDTH as usize, HEIGHT as usize, 1);
+    // let mut life = LifeGrid::new_random(WIDTH as usize, HEIGHT as usize, PARTICLE_GROUPS_TO_GENERATE as usize);
     let mut paused = false;
 
     event_loop.run(move |event, _, control_flow| {
         // The one and only event that winit_input_helper doesn't have for us...
         if let Event::RedrawRequested(_) = event {
-            life.draw(pixels.frame_mut());
+            simulation.draw(pixels.frame_mut());
+            // life.draw(pixels.frame_mut());
             if let Err(err) = pixels.render() {
                 log_error("pixels.render", err);
                 *control_flow = ControlFlow::Exit;
@@ -79,7 +82,8 @@ fn main() -> Result<(), Error> {
                 paused = true;
             }
             if input.key_pressed(VirtualKeyCode::R) {
-                life.randomize();
+                // life.randomize();
+                simulation.randomise();
             }
 
             // Resize the window
@@ -91,7 +95,8 @@ fn main() -> Result<(), Error> {
                 }
             }
             if !paused || input.key_pressed_os(VirtualKeyCode::Space) {
-                life.update();
+                // life.update();
+                simulation.update();
             }
             window.request_redraw();
         }

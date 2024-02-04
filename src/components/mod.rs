@@ -1,4 +1,2 @@
-pub mod life_grid;
+pub mod simulation_grid;
 pub mod particle;
-pub mod particle_group;
-pub mod rule;
