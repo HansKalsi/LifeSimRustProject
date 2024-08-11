@@ -5,7 +5,6 @@ use rand::Rng;
 
 // FIXME: legacy
 use crate::components::particle::Particle;
-use super::organism::Organism;
 
 use crate::components::tile::Tile;
 
@@ -17,7 +16,6 @@ pub struct SimGrid {
     pub y: u8,
     pub pixels: Vec<Particle>,
     pub timespace: Vec<(usize, usize)>,
-    pub organisms: Vec<Organism>,
     pub tiles: Vec<Tile>,
     pub needsReRender: bool,
 }
@@ -33,7 +31,6 @@ impl SimGrid {
             pixel_size,
             pixels: vec![Particle::default(); width * height],
             timespace: vec![],
-            organisms: vec![Organism::default()],
             tiles: vec![Tile::default()],
             needsReRender: true,
         }
