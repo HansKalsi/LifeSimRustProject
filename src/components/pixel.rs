@@ -1,6 +1,6 @@
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Pixel {
-    pub colour_rgba: [u8; 4], 
+    pub colour_rgba: [u8; 4],
 }
 
 impl Pixel {

@@ -82,7 +82,6 @@ fn main() -> Result<(), Error> {
                 paused = true;
             }
             if input.key_pressed(VirtualKeyCode::R) {
-                // life.randomize();
                 simulation.randomise();
                 simulation.needsReRender = true;
             }
@@ -96,7 +95,6 @@ fn main() -> Result<(), Error> {
                 }
             }
             if !paused || input.key_pressed_os(VirtualKeyCode::Space) {
-                // life.update();
                 simulation.update();
             }
             window.request_redraw();

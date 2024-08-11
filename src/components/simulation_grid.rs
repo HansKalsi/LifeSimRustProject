@@ -15,7 +15,6 @@ pub struct SimGrid {
     pub x: u8,
     pub y: u8,
     pub pixels: Vec<Particle>,
-    pub timespace: Vec<(usize, usize)>,
     pub tiles: Vec<Tile>,
     pub needsReRender: bool,
 }
@@ -30,13 +29,12 @@ impl SimGrid {
             height,
             pixel_size,
             pixels: vec![Particle::default(); width * height],
-            timespace: vec![],
             tiles: vec![Tile::default()],
             needsReRender: true,
         }
     }
 
-    pub fn generate_timespace(&mut self, screen: &mut [u8]) {
+    pub fn render_screen(&mut self, screen: &mut [u8]) {
         let mut temp_pixel_colours_from_tiles: Vec<[u8; 4]> = vec![];
         // Render tiles into screen
         for tile in self.tiles.iter() {
@@ -70,7 +68,6 @@ impl SimGrid {
                 }
                 if p_i as i32 <= (width_res - 1) {
                     calculated_x = p_i as i32 + ((tile_i as i32 % width_res_fit) * width_res);
-                    // calculated_y = tile_i as i32;
                 } else {
                     calculated_x = (p_i as i32 % width_res) + ((tile_i as i32 % width_res_fit) * width_res);
                     if (p_i as i32 % width_res) == 0 {
@@ -90,16 +87,11 @@ impl SimGrid {
         if self.needsReRender == false {
             return;
         }
-        // Clear the canvas
-        let mut coutner = 0;
-        // Array of [u8; 4] equal to the amount of chunks in screen
-        if self.timespace.len() == 0 {
-            self.generate_timespace(screen);
-            // println!("screen: {}", screen.chunks_exact_mut(4).len());
-        }
+        self.render_screen(screen);
     }
 
     pub fn update(&mut self) {
+        self.tile_lifecycle();
     }
 
     pub fn randomise(&mut self) {
@@ -128,6 +120,12 @@ impl SimGrid {
                 _ => '.',
             };
             self.tiles.push(Tile::new(i as u8, i as u8, random_terrain_type));
+        }
+    }
+
+    fn tile_lifecycle(&mut self) {
+        for tile in self.tiles.iter_mut() {
+            tile.update_tile();
         }
     }
 }
