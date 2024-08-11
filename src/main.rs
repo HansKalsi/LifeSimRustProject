@@ -84,6 +84,7 @@ fn main() -> Result<(), Error> {
             if input.key_pressed(VirtualKeyCode::R) {
                 // life.randomize();
                 simulation.randomise();
+                simulation.needsReRender = true;
             }
 
             // Resize the window

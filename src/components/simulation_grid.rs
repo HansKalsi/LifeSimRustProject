@@ -1,20 +1,25 @@
 use bevy_math::UVec2;
 use pixels::wgpu::Color;
-use pixel_map::PixelMap;
 use crate::generate_seed;
-// use pixel_map::PNode;
+use rand::Rng;
 
+// FIXME: legacy
 use crate::components::particle::Particle;
+use super::organism::Organism;
+
+use crate::components::tile::Tile;
 
 pub struct SimGrid {
     pub width: usize,
     pub height: usize,
     pub pixel_size: usize,
-    // pub pixel_map: PixelMap<Particle>,
     pub x: u8,
     pub y: u8,
     pub pixels: Vec<Particle>,
     pub timespace: Vec<(usize, usize)>,
+    pub organisms: Vec<Organism>,
+    pub tiles: Vec<Tile>,
+    pub needsReRender: bool,
 }
 
 impl SimGrid {
@@ -26,113 +31,122 @@ impl SimGrid {
             width,
             height,
             pixel_size,
-            // pixel_map: PixelMap::<Particle>::new(
-            //     &UVec2{x: width as u32, y: height as u32}, // size of the pixel map
-            //     Particle::default(), // initial value of each pixel
-            //     1, // pixel size
-            // ),
             pixels: vec![Particle::default(); width * height],
             timespace: vec![],
+            organisms: vec![Organism::default()],
+            tiles: vec![Tile::default()],
+            needsReRender: true,
         }
     }
 
     pub fn generate_timespace(&mut self, screen: &mut [u8]) {
-        println!("timespace: {}", self.timespace.len());
-        println!("width: {}", self.width);
-        println!("height: {}", self.height);
-        println!("width * height: {}", self.width * self.height);
-        println!("x: {}", self.x);
-        println!("y: {}", self.y);
-
-        for y in 0..self.height {
-            for x in 0..self.width {
-                // let pixel = self.pixel_map.get_pixel(UVec2{x: x as u32, y: y as u32});
-                // let pixel_colour = pixel.unwrap().pixel_colour_rgba;
-                let pixel_colour = [255, 255, 255, 255];
-                let pixel_colour = [pixel_colour[0], pixel_colour[1], pixel_colour[2], pixel_colour[3]];
-                screen[(y * self.width + x) * 4..(y * self.width + x) * 4 + 4].copy_from_slice(&pixel_colour);
+        let mut temp_pixel_colours_from_tiles: Vec<[u8; 4]> = vec![];
+        // Render tiles into screen
+        for tile in self.tiles.iter() {
+            for p in tile.pixels.iter() {
+                temp_pixel_colours_from_tiles.push(p.colour_rgba);
             }
         }
+        println!("temp_pixels_from_tiles: {}", temp_pixel_colours_from_tiles.len());
+
+        let res: usize = 32;
+        let width_res: i32 = res as i32;
+        let height_res: i32 = res as i32;
+        // let tile_res = width_res * height_res;
+        let width_res_fit: i32 = (self.width / res) as i32;
+        println!("width_res_fit: {}", width_res_fit);
+        let height_res_fit: i32 = (self.height / res) as i32;
+        
+        for (tile_i, tile) in self.tiles.iter().enumerate() {
+            println!("tile_i: {}", tile_i);
+            let mut calculated_x = 0;
+            let mut calculated_y = 0;
+            if (tile_i as i32 + 1) > height_res_fit {
+                calculated_y = (tile_i as i32 / height_res_fit) * height_res;
+            }
+            let mut shared = false;
+            for (p_i, p) in tile.pixels.iter().enumerate() {
+                // println!("p_i: {}", p_i);
+                if width_res_fit > tile_i as i32 {
+                    if shared == false {
+                        shared = true;
+                        println!("loaded tile_i from first if: {}", tile_i);
+                    }
+                    if p_i as i32 <= (width_res - 1) {
+                        calculated_x = p_i as i32 + (tile_i as i32 * width_res);
+                        // calculated_y = 0;
+                    } else {
+                        calculated_x = (p_i as i32 % width_res) + (tile_i as i32 * width_res);
+                        if (p_i as i32 % width_res) == 0 {
+                            calculated_y += 1;
+                        }
+                    }
+                } else {
+                    if shared == false {
+                        shared = true;
+                        println!("loaded tile_i from second if: {}", tile_i);
+                    }
+                    if p_i as i32 <= (width_res - 1) {
+                        calculated_x = p_i as i32 + ((tile_i as i32 % width_res_fit) * width_res);
+                        // calculated_y = tile_i as i32;
+                    } else {
+                        calculated_x = (p_i as i32 % width_res) + ((tile_i as i32 % width_res_fit) * width_res);
+                        if (p_i as i32 % width_res) == 0 {
+                            calculated_y += 1;
+                        }
+                    }
+                }
+                let pixel_colour = p.colour_rgba;
+                screen[(calculated_y as usize * self.width + calculated_x as usize) * 4..(calculated_y as usize * self.width + calculated_x as usize) * 4 + 4].copy_from_slice(&pixel_colour);
+            }
+        }
+
+        // Stop unnecessary re-renders
+        self.needsReRender = false;
     }
 
-    // Need rect, node, screen to be passed when draw_particle
-    // ~16% weight | FIXME: second most inefficent piece atm
     pub fn draw(&mut self, screen: &mut [u8]) {
+        if self.needsReRender == false {
+            return;
+        }
         // Clear the canvas
         let mut coutner = 0;
         // Array of [u8; 4] equal to the amount of chunks in screen
         if self.timespace.len() == 0 {
             self.generate_timespace(screen);
-            println!("screen: {}", screen.chunks_exact_mut(4).len());
+            // println!("screen: {}", screen.chunks_exact_mut(4).len());
         }
-
-        // for (pixel, cell) in screen.chunks_exact_mut(4).zip(self.timespace.iter()) {
-        //     coutner+=1;
-        //     pixel.copy_from_slice(cell.pixel_colour_rgba.as_ref());
-        // }
-        // println!("counter: {}", coutner);
-        // println!("chunks: {}", coutner*4);
-
-        // // Print particle amount to console
-        // if self.live_particle_count != 0 {
-        //     println!("amount of particles: {}", self.live_particle_count);
-        //     println!("runs with life: {}", self.runs_with_life);
-        // }
-
-        // // Visit all leaf nodes
-        // self.pixel_map.visit(|node, _rect| {
-        //     if node.value().id != 0 {
-        //         self.draw_particle(node, screen);
-        //     }
-        // });
     }
 
-    pub fn update(&mut self) {    
-        // each colour in rgba represent a different rule, this will allow nearby particles to interact and allow for local effects
-        // let mut tracker = 0;
-        // let temp_timespace_copy = self.timespace.clone(); 
-        // for p in temp_timespace_copy.iter() {
-        //     tracker+=1;
-        //     if self.timespace.len() == tracker {
-        //         break;
-        //     }
-        //     let right_neighbour = self.timespace.get(tracker);
-        //     // Compare rgb values and drag each other toward an average for now
-        //     let r_avg = (p.pixel_colour_rgba[0] + right_neighbour.unwrap().pixel_colour_rgba[0])/2;
-        //     let g_avg = (p.pixel_colour_rgba[1] + right_neighbour.unwrap().pixel_colour_rgba[1])/2;
-        //     let b_avg = (p.pixel_colour_rgba[2] + right_neighbour.unwrap().pixel_colour_rgba[2])/2;
-
-        //     self.timespace[tracker - 1].pixel_colour_rgba[0] = r_avg;
-        //     self.timespace[tracker - 1].pixel_colour_rgba[1] = g_avg;
-        //     self.timespace[tracker - 1].pixel_colour_rgba[2] = b_avg;
-
-
-        //     // if left neighbour is not null
-        //     if tracker == 1 {
-        //         println!("tracker: {}", tracker);
-        //         continue;
-        //     }
-        //     let left_neighbour = self.timespace.get(tracker - 2);
-        //     // Compare rgb values and drag each other toward an average for now
-        //     let r_avg = (p.pixel_colour_rgba[0] + left_neighbour.unwrap().pixel_colour_rgba[0])/2;
-        //     let g_avg = (p.pixel_colour_rgba[1] + left_neighbour.unwrap().pixel_colour_rgba[1])/2;
-        //     let b_avg = (p.pixel_colour_rgba[2] + left_neighbour.unwrap().pixel_colour_rgba[2])/2;
-
-        //     self.timespace[tracker - 1].pixel_colour_rgba[0] = r_avg;
-        //     self.timespace[tracker - 1].pixel_colour_rgba[1] = g_avg;
-        //     self.timespace[tracker - 1].pixel_colour_rgba[2] = b_avg;
-        // }
+    pub fn update(&mut self) {
     }
 
     pub fn randomise(&mut self) {
-        // for p in self.timespace.iter_mut() {
-        //     p.randomise_pixel_colour();
-        // }
-        // self.pixel_map.visit(|node, _rect| {
-        //     if node.value().id != 0 {
-        //         node.value().x += 1.0;
-        //         node.value().randomise_pixel_colour();
-        //     }
-        // });
+        println!("Randomising simulation grid...");
+        // Clear Tiles
+        self.tiles.clear();
+
+        let mut rng = rand::thread_rng();
+
+        // Generate tiles
+        println!("Tile calculations:");
+        let width_res_fit: i8 = (self.width / 32) as i8;
+        let height_res_fit: i8 = (self.height / 32) as i8;
+        println!("width_res_fit: {}", width_res_fit);
+        println!("height_res_fit: {}", height_res_fit);
+        let res_fit: i8 = width_res_fit * height_res_fit;
+        println!("res_fit: {}", res_fit);
+        for i in 0..res_fit {
+            let random_terrain_type = match rng.gen_range(0..6) {
+                0 => 'f',
+                1 => 'w',
+                2 => 'm',
+                3 => 'h',
+                4 => 'p',
+                5 => 'w',
+                _ => '.',
+            };
+            self.tiles.push(Tile::new(i as u8, i as u8, random_terrain_type));
+        }
     }
 }
