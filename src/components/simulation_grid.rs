@@ -64,33 +64,17 @@ impl SimGrid {
             let mut shared = false;
             for (p_i, p) in tile.pixels.iter().enumerate() {
                 // println!("p_i: {}", p_i);
-                if width_res_fit > tile_i as i32 {
-                    if shared == false {
-                        shared = true;
-                        println!("loaded tile_i from first if: {}", tile_i);
-                    }
-                    if p_i as i32 <= (width_res - 1) {
-                        calculated_x = p_i as i32 + (tile_i as i32 * width_res);
-                        // calculated_y = 0;
-                    } else {
-                        calculated_x = (p_i as i32 % width_res) + (tile_i as i32 * width_res);
-                        if (p_i as i32 % width_res) == 0 {
-                            calculated_y += 1;
-                        }
-                    }
+                if shared == false {
+                    shared = true;
+                    println!("loaded tile_i from second if: {}", tile_i);
+                }
+                if p_i as i32 <= (width_res - 1) {
+                    calculated_x = p_i as i32 + ((tile_i as i32 % width_res_fit) * width_res);
+                    // calculated_y = tile_i as i32;
                 } else {
-                    if shared == false {
-                        shared = true;
-                        println!("loaded tile_i from second if: {}", tile_i);
-                    }
-                    if p_i as i32 <= (width_res - 1) {
-                        calculated_x = p_i as i32 + ((tile_i as i32 % width_res_fit) * width_res);
-                        // calculated_y = tile_i as i32;
-                    } else {
-                        calculated_x = (p_i as i32 % width_res) + ((tile_i as i32 % width_res_fit) * width_res);
-                        if (p_i as i32 % width_res) == 0 {
-                            calculated_y += 1;
-                        }
+                    calculated_x = (p_i as i32 % width_res) + ((tile_i as i32 % width_res_fit) * width_res);
+                    if (p_i as i32 % width_res) == 0 {
+                        calculated_y += 1;
                     }
                 }
                 let pixel_colour = p.colour_rgba;
